@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+<title>Rent Tracker</title>
+
+<!-- Installable app (PWA) setup: lets this be added to the Home Screen
+     on Android and iPhone and run full-screen like a native app. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1C8A5D">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+
+<!-- Android / Chrome -->
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- iPhone / Safari -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rent Tracker">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+  :root {
+    --bg: #F3F5F7;
+    --card: #FFFFFF;
+    --primary: #1C8A5D;
+    --primary-dark: #146B47;
+    --primary-soft: #E4F4EC;
+    --ink: #1F2937;
+    --ink-soft: #6B7280;
+    --ink-faint: #9CA3AF;
+    --border: #E7EAEE;
+    --amber: #B7791F; --amber-bg: #FDF3DF;
+    --red: #D8443C; --red-bg: #FBE7E5;
+    --green: #1C8A5D; --green-bg: #E4F4EC;
+    --slate: #64748B; --slate-bg: #EEF1F5;
+    --radius: 16px;
+    --radius-sm: 11px;
+    --shadow: 0 1px 2px rgba(16,24,40,0.04), 0 1px 6px rgba(16,24,40,0.05);
+    --shadow-lg: 0 10px 30px rgba(16,24,40,0.14);
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--font); }
+  body { padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+  button, input, select, textarea { font-family: inherit; }
+  #app { min-height: 100vh; }
+
+  /* ---------- TOP BAR ---------- */
+  .topbar { position: sticky; top: 0; z-index: 20; background: rgba(243,245,247,0.92); backdrop-filter: blur(6px);
+    padding: 16px 18px 10px; display: flex; align-items: center; gap: 10px; }
+  .topbar .back-btn { width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--card); box-shadow: var(--shadow);
+    display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; flex-shrink: 0; color: var(--ink); }
+  .topbar h1 { font-size: 20px; margin: 0; font-weight: 800; letter-spacing: -0.01em; flex: 1; }
+  .topbar .sub { font-size: 12.5px; color: var(--ink-soft); margin: 1px 0 0; }
+  .topbar-action { border: none; background: var(--primary-soft); color: var(--primary-dark); font-weight: 700; font-size: 13px;
+    padding: 8px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+
+  /* ---------- PAGE / TRANSITIONS ---------- */
+  .page { padding: 4px 18px 24px; max-width: 640px; margin: 0 auto; }
+  @keyframes pageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .page-enter { animation: pageIn 0.22s ease; }
+  @media (prefers-reduced-motion: reduce) { .page-enter { animation: none; } }
+
+  /* ---------- CARDS / STATS ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+  .greet { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin: 6px 0 2px; }
+  .greet-sub { font-size: 13px; color: var(--ink-soft); margin: 0 0 18px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .stat-card { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 13px 14px; }
+  .stat-card .lbl { font-size: 11.5px; color: var(--ink-soft); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .stat-card .val { font-size: 19px; font-weight: 800; margin-top: 5px; letter-spacing: -0.01em; }
+  .stat-card.accent .val { color: var(--red); }
+  .stat-card.good .val { color: var(--primary); }
+  .net-card { grid-column: 1 / -1; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff;
+    border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow-lg); margin-bottom: 18px; }
+  .net-card .lbl { font-size: 12px; opacity: 0.85; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .net-card .val { font-size: 28px; font-weight: 800; margin-top: 4px; letter-spacing: -0.02em; }
+  .net-card .row { display: flex; gap: 18px; margin-top: 12px; font-size: 12.5px; opacity: 0.92; }
+
+  /* ---------- QUICK ACTIONS ---------- */
+  .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 22px; }
+  .qa-btn { background: var(--card); border: none; border-radius: var(--radius-sm); box-shadow: var(--shadow);
+    padding: 14px 6px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; color: var(--ink); }
+  .qa-btn .ic { font-size: 20px; }
+  .qa-btn .lb { font-size: 11.5px; font-weight: 700; text-align: center; line-height: 1.2; }
+  .qa-btn:active { transform: scale(0.96); }
+
+  /* ---------- SECTION HEADERS ---------- */
+  .sec-head { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 10px; }
+  .sec-head h2 { font-size: 15px; margin: 0; font-weight: 800; }
+  .sec-head a { font-size: 12.5px; color: var(--primary); font-weight: 700; cursor: pointer; background: none; border: none; }
+
+  /* ---------- ACTIVITY LIST ---------- */
+  .activity-item { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+  .activity-item:last-child { border-bottom: none; }
+  .act-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .act-icon.in { background: var(--green-bg); }
+  .act-icon.out { background: var(--red-bg); }
+  .act-main { flex: 1; min-width: 0; }
+  .act-title { font-size: 13.5px; font-weight: 700; }
+  .act-sub { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+  .act-amt { font-size: 13.5px; font-weight: 800; white-space: nowrap; }
+  .act-amt.in { color: var(--primary); }
+  .act-amt.out { color: var(--red); }
+
+  /* ---------- SEARCH / CHIPS ---------- */
+  .search-row { display: flex; gap: 8px; margin: 6px 0 14px; }
+  .search-box { flex: 1; position: relative; }
+  .search-box input { width: 100%; padding: 11px 14px 11px 36px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--card); font-size: 14px; color: var(--ink); }
+  .search-box span { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 14px; opacity: 0.6; }
+  .chip-row { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 14px; }
+  .chip { border: 1px solid var(--border); background: var(--card); color: var(--ink-soft); font-size: 12.5px; font-weight: 700;
+    padding: 7px 13px; border-radius: 999px; cursor: pointer; }
+  .chip.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* ---------- LIST / EMPTY ---------- */
+  .empty-state { text-align: center; padding: 56px 12px; color: var(--ink-soft); }
+  .empty-state .ic { font-size: 34px; margin-bottom: 10px; }
+  .empty-state p { font-size: 14px; margin: 0 0 14px; }
+
+  /* ---------- TENANT CARD ---------- */
+  .tenant-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 15px;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .tenant-card:active { transform: scale(0.99); }
+  .avatar { width: 42px; height: 42px; border-radius: 50%; background: var(--primary-soft); color: var(--primary-dark);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex-shrink: 0; }
+  .tenant-main { flex: 1; min-width: 0; }
+  .tenant-name-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .tenant-name { font-weight: 800; font-size: 14.5px; }
+  .mini-tag { font-size: 10.5px; font-weight: 700; color: var(--ink-soft); background: var(--slate-bg); padding: 2px 7px; border-radius: 999px; }
+  .tenant-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; }
+  .badge { font-size: 10.5px; font-weight: 800; letter-spacing: 0.02em; padding: 5px 10px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+  .chev { color: var(--ink-faint); font-size: 18px; flex-shrink: 0; }
+
+  /* ---------- FAB ---------- */
+  .fab { position: fixed; right: 20px; bottom: calc(90px + env(safe-area-inset-bottom, 0px)); width: 54px; height: 54px; border-radius: 50%;
+    background: var(--primary); color: #fff; border: none; font-size: 24px; box-shadow: 0 10px 24px rgba(28,138,93,0.4);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 25; }
+  .fab:active { transform: scale(0.94); }
+
+  /* ---------- TENANT DETAIL ---------- */
+  .info-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+  .info-top { display: flex; align-items: center; gap: 13px; margin-bottom: 14px; }
+  .avatar-lg { width: 52px; height: 52px; border-radius: 50%; background: var(--primary-soft); color: var(--primary-dark);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 19px; flex-shrink: 0; }
+  .info-name { font-size: 18px; font-weight: 800; }
+  .info-unit { font-size: 12.5px; color: var(--ink-soft); margin-top: 1px; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .info-item .lbl { font-size: 11px; color: var(--ink-soft); font-weight: 600; text-transform: uppercase; }
+  .info-item .val { font-size: 14px; font-weight: 700; margin-top: 2px; }
+  .info-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .btn-outline { flex: 1; border: 1px solid var(--border); background: var(--card); border-radius: var(--radius-sm);
+    padding: 10px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; }
+  .btn-outline.danger { color: var(--red); border-color: #F3C9C6; }
+
+  .owed-card { border-radius: var(--radius); padding: 16px 18px; margin-bottom: 18px; color: #fff; }
+  .owed-card.clear { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); }
+  .owed-card.owing { background: linear-gradient(135deg, #E5534B, #C23B34); }
+  .owed-card .lbl { font-size: 12px; opacity: 0.85; font-weight: 700; text-transform: uppercase; }
+  .owed-card .val { font-size: 24px; font-weight: 800; margin-top: 3px; }
+
+  .period-card { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); margin-bottom: 9px; overflow: hidden; }
+  .period-top { display: flex; align-items: center; gap: 9px; padding: 12px 14px; }
+  .period-name { flex: 1; font-size: 13.5px; font-weight: 700; }
+  .period-amt { font-size: 11.5px; color: var(--ink-soft); font-weight: 600; }
+  .record-btn { font-size: 12px; font-weight: 800; padding: 7px 13px; border-radius: 999px; border: none; background: var(--ink); color: #fff; cursor: pointer; }
+  .entry-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 14px; font-size: 12px; color: var(--ink-soft); border-top: 1px dashed var(--border); }
+  .entry-actions { display: flex; gap: 12px; }
+  .icon-btn { background: none; border: none; cursor: pointer; opacity: 0.6; font-size: 13px; padding: 2px; }
+  .icon-btn:disabled { opacity: 0.2; }
+  .pay-form { margin: 0 14px 14px; padding: 12px; background: var(--bg); border-radius: 12px; }
+
+  /* ---------- FORM ELEMENTS ---------- */
+  .field { display: block; margin-top: 12px; }
+  .field:first-child { margin-top: 0; }
+  .field-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .input { width: 100%; padding: 11px 13px; font-size: 14px; border: 1px solid var(--border); border-radius: 12px;
+    background: var(--bg); color: var(--ink); margin-top: 5px; }
+  .input:focus, .chip:focus-visible, button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hint-text { font-size: 11.5px; color: var(--ink-faint); margin: 5px 0 0; }
+  .seg { display: flex; gap: 8px; margin-top: 6px; }
+  .seg-opt { flex: 1; padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg);
+    font-size: 12.5px; font-weight: 700; color: var(--ink); cursor: pointer; text-align: center; }
+  .seg-opt.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* ---------- EXPENSE CARD ---------- */
+  .expense-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 15px;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+  .exp-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--red-bg); display: flex; align-items: center;
+    justify-content: center; font-size: 17px; flex-shrink: 0; }
+  .exp-main { flex: 1; min-width: 0; }
+  .exp-desc { font-weight: 800; font-size: 14px; }
+  .exp-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .exp-amt-col { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .exp-amt { font-weight: 800; font-size: 13.5px; color: var(--red); }
+  .exp-actions { display: flex; gap: 10px; }
+
+  /* ---------- REPORTS ---------- */
+  .month-row { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 13px 15px; margin-bottom: 9px; }
+  .month-row .m-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .month-row .m-name { font-weight: 800; font-size: 13.5px; }
+  .month-row .m-net { font-size: 12.5px; font-weight: 700; }
+  .bar-line { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .bar-label { font-size: 10.5px; color: var(--ink-soft); width: 46px; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 7px; background: var(--bg); border-radius: 999px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; }
+  .bar-fill.in { background: var(--primary); }
+  .bar-fill.out { background: var(--red); }
+  .bar-val { font-size: 10.5px; color: var(--ink-soft); width: 74px; text-align: right; flex-shrink: 0; }
+
+  /* ---------- BOTTOM NAV ---------- */
+  .bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--card);
+    border-top: 1px solid var(--border); display: flex; padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .nav-btn { flex: 1; border: none; background: none; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 7px 2px; cursor: pointer; color: var(--ink-faint); }
+  .nav-btn .ic { font-size: 19px; }
+  .nav-btn .lb { font-size: 10.5px; font-weight: 700; }
+  .nav-btn.active { color: var(--primary); }
+
+  /* ---------- MODALS ---------- */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(17,24,39,0.5); z-index: 50; display: flex;
+    align-items: flex-end; justify-content: center; }
+  @media (min-width: 560px) { .modal-overlay { align-items: center; padding: 16px; } }
+  .modal { width: 100%; max-width: 460px; max-height: 92vh; overflow-y: auto; background: var(--card);
+    border-radius: 22px 22px 0 0; padding: 22px 20px calc(22px + env(safe-area-inset-bottom, 0px)); }
+  @media (min-width: 560px) { .modal { border-radius: 22px; } }
+  .modal-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .modal-top h2 { font-size: 18px; margin: 0; font-weight: 800; }
+  .modal-top .close { background: var(--bg); border: none; width: 30px; height: 30px; border-radius: 50%; font-size: 16px;
+    cursor: pointer; color: var(--ink-soft); }
+  .modal-actions { display: flex; gap: 9px; margin-top: 20px; }
+  .btn-primary { flex: 1; background: var(--primary); color: #fff; border: none; border-radius: 12px; padding: 13px;
+    font-weight: 800; font-size: 14px; cursor: pointer; }
+  .btn-primary:active { background: var(--primary-dark); }
+  .btn-primary.danger { background: var(--red); }
+  .btn-primary:disabled { opacity: 0.45; }
+  .btn-ghost { background: none; border: none; color: var(--ink-soft); font-weight: 700; font-size: 13.5px; padding: 13px; cursor: pointer; }
+
+  /* ---------- TOAST ---------- */
+  .toast { position: fixed; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    z-index: 60; box-shadow: 0 10px 24px rgba(0,0,0,0.25); max-width: 88vw; text-align: center; }
+  .toast.error { background: var(--red); }
+
+  /* ---------- RECEIPT PREVIEW ---------- */
+  .receipt-preview-wrap { background: var(--bg); border-radius: 14px; padding: 10px; display: flex; justify-content: center; }
+  .receipt-preview-wrap img { max-width: 100%; border-radius: 8px; box-shadow: var(--shadow); }
+  .receipt-btn-row { display: flex; gap: 9px; margin-top: 14px; }
+  .receipt-btn { flex: 1; border: 1px solid var(--border); background: var(--card); border-radius: 12px;
+    padding: 11px 6px; font-size: 12px; font-weight: 700; color: var(--ink); cursor: pointer; display: flex;
+    flex-direction: column; align-items: center; gap: 4px; }
+  .receipt-btn .ic { font-size: 17px; }
+  .receipt-btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  /* ---------- SEARCHABLE TENANT PICKER ---------- */
+  .rp-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; margin-top: 4px; max-height: 220px; overflow-y: auto; box-shadow: var(--shadow-lg); z-index: 5; display: none; }
+  .rp-result-item { padding: 10px 13px; font-size: 13px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .rp-result-item:last-child { border-bottom: none; }
+  .rp-result-item:active { background: var(--bg); }
+  .rp-selected-pill { display: none; align-items: center; justify-content: space-between; margin-top: 6px;
+    padding: 11px 13px; background: var(--primary-soft); border-radius: 12px; }
+  .rp-selected-pill .name { font-weight: 700; font-size: 13.5px; color: var(--primary-dark); }
+  .rp-selected-pill button { background: none; border: none; color: var(--primary-dark); font-size: 12px; font-weight: 700; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar"></div>
+  <div id="page" class="page"></div>
+  <button class="fab" id="fabBtn" style="display:none;"></button>
+  <div class="bottomnav" id="bottomnav"></div>
+  <div id="modalRoot"></div>
+  <div class="toast" id="toast" style="display:none;"></div>
+</div>
+
+<script>
+/* ==================================================================
+   STATE + PERSISTENCE
+================================================================== */
+var TODAY = new Date();
+var LANDLORD_PHONE = "0780303348";
+var state = {
+  tenants: [], payments: [], expenses: [],
+  route: "dashboard",           // dashboard | tenants | tenantDetail | expenses | reports
+  activeTenantId: null,
+  query: "", typeFilter: "all", tenantStatusFilter: "active",
+  expQuery: "", expCategoryFilter: "all",
+  payingKey: null,              // period id currently showing its inline payment form
+  modal: null,                  // addTenant | editTenant | recordPayment | addExpense | editExpense | confirmDelete
+  modalCtx: null,
+};
+
+function loadData() {
+  try {
+    var raw = localStorage.getItem("rent-manager-data");
+    if (raw) {
+      var p = JSON.parse(raw);
+      state.tenants = p.tenants || [];
+      state.payments = p.payments || [];
+      state.expenses = p.expenses || [];
+    }
+  } catch (e) {}
+}
+function saveData() {
+  try {
+    localStorage.setItem("rent-manager-data", JSON.stringify({ tenants: state.tenants, payments: state.payments, expenses: state.expenses }));
+  } catch (e) { showToast("Couldn't save — storage may be full.", true); }
+}
+
+/* ==================================================================
+   DATE / PERIOD HELPERS
+================================================================== */
+function pad(n) { return String(n).padStart(2, "0"); }
+function monthPeriodId(y, m) { return y + "-" + pad(m + 1); }
+function monthPeriodLabel(id) {
+  var parts = id.split("-");
+  var d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+  return d.toLocaleString("en-US", { month: "long", year: "numeric" });
+}
+function monthShortLabel(id) {
+  var parts = id.split("-");
+  var d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+  return d.toLocaleString("en-US", { month: "short", year: "numeric" });
+}
+function semesterOfDate(date) { return { y: date.getFullYear(), half: date.getMonth() < 6 ? 1 : 2 }; }
+function semesterPeriodId(y, half) { return y + "-H" + half; }
+function semesterPeriodLabel(id) {
+  var parts = id.split("-H");
+  return (parts[1] === "1" ? "Jan – Jun" : "Jul – Dec") + " " + parts[0];
+}
+
+/* ---- Custom monthly billing cycles: most tenants' "month" runs the
+   1st to end-of-month, but some start mid-month (e.g. the 15th). A
+   tenant's billingDay (1-28) shifts where each monthly cycle begins. ---- */
+function periodStartDate(y, m, day) {
+  var lastDay = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(day, lastDay));
+}
+function anchorMonthContaining(date, day) {
+  var y = date.getFullYear(), m = date.getMonth();
+  var thisStart = periodStartDate(y, m, day);
+  if (date < thisStart) { m--; if (m < 0) { m = 11; y--; } }
+  return { y: y, m: m };
+}
+function getMonthlyPeriods(startDate, today, billingDay) {
+  var day = billingDay || 1;
+  var periods = [];
+  var startAnchor = anchorMonthContaining(startDate, day);
+  var endAnchor = anchorMonthContaining(today, day);
+  var y = startAnchor.y, m = startAnchor.m; var guard = 0;
+  while ((y < endAnchor.y || (y === endAnchor.y && m <= endAnchor.m)) && guard < 600) {
+    periods.push(monthPeriodId(y, m)); m++; if (m > 11) { m = 0; y++; } guard++;
+  }
+  return periods.reverse();
+}
+function getSemesterPeriods(startDate, today) {
+  var periods = []; var so = semesterOfDate(startDate); var y = so.y, half = so.half;
+  var end = semesterOfDate(today); var guard = 0;
+  while ((y < end.y || (y === end.y && half <= end.half)) && guard < 200) {
+    periods.push(semesterPeriodId(y, half)); half++; if (half > 2) { half = 1; y++; } guard++;
+  }
+  return periods.reverse();
+}
+function effectiveDateFor(tenant, today) {
+  if (tenant.status === "former" && tenant.endDate) {
+    var end = new Date(tenant.endDate);
+    if (end < today) return end;
+  }
+  return today;
+}
+function getPeriods(tenant, today) {
+  var start = new Date(tenant.startDate);
+  var effectiveToday = effectiveDateFor(tenant, today);
+  var periods = tenant.rentType === "monthly" ? getMonthlyPeriods(start, effectiveToday, tenant.billingDay) : getSemesterPeriods(start, effectiveToday);
+  if (Number(tenant.openingBalance) > 0) periods.push("OPENING");
+
+  // an advance payment can cover months that haven't arrived yet — make sure
+  // those show up in the ledger right away instead of staying hidden until then
+  var seen = {}; periods.forEach(function (p) { seen[p] = true; });
+  var extra = [];
+  (state.payments || []).forEach(function (p) {
+    if (p.tenantId === tenant.id && p.period !== "OPENING" && !seen[p.period]) { extra.push(p.period); seen[p.period] = true; }
+  });
+  if (extra.length) {
+    extra.sort(function (a, b) { return getDueDate(tenant, b) - getDueDate(tenant, a); });
+    periods = extra.concat(periods);
+  }
+  return periods;
+}
+function monthlyPeriodRangeLabel(tenant, id) {
+  var day = tenant.billingDay || 1;
+  var parts = id.split("-"); var y = Number(parts[0]), m = Number(parts[1]) - 1;
+  var start = periodStartDate(y, m, day);
+  var nextM = m + 1, nextY = y; if (nextM > 11) { nextM = 0; nextY++; }
+  var nextStart = periodStartDate(nextY, nextM, day);
+  var end = new Date(nextStart.getFullYear(), nextStart.getMonth(), nextStart.getDate() - 1);
+  var fmt = function (d) { return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
+  return fmt(start) + " – " + fmt(end) + ", " + end.getFullYear();
+}
+function periodLabel(tenant, id) {
+  if (id === "OPENING") return "Previous Balance (carried over)";
+  if (tenant.rentType === "monthly") return (tenant.billingDay && tenant.billingDay > 1) ? monthlyPeriodRangeLabel(tenant, id) : monthPeriodLabel(id);
+  return semesterPeriodLabel(id);
+}
+function getPeriodDue(tenant, periodId) { return periodId === "OPENING" ? Number(tenant.openingBalance || 0) : Number(tenant.rentAmount); }
+function getCurrentPeriod(tenant, today) {
+  var effectiveToday = effectiveDateFor(tenant, today);
+  if (tenant.rentType === "monthly") {
+    var anchor = anchorMonthContaining(effectiveToday, tenant.billingDay || 1);
+    return monthPeriodId(anchor.y, anchor.m);
+  }
+  var so = semesterOfDate(effectiveToday); return semesterPeriodId(so.y, so.half);
+}
+function getDueDate(tenant, periodId) {
+  if (periodId === "OPENING") return new Date(tenant.startDate);
+  if (tenant.rentType === "monthly") {
+    var day = tenant.billingDay || 1;
+    var parts = periodId.split("-"); var y = Number(parts[0]), m = Number(parts[1]) - 1;
+    var start = periodStartDate(y, m, day);
+    return new Date(start.getFullYear(), start.getMonth(), start.getDate() + 4, 23, 59, 59);
+  }
+  var parts2 = periodId.split("-H"); var month = parts2[1] === "1" ? 0 : 6;
+  return new Date(Number(parts2[0]), month + 1, 0, 23, 59, 59);
+}
+function paidForPeriod(tenantId, periodId, payments) {
+  return payments.filter(function (p) { return p.tenantId === tenantId && p.period === periodId; })
+    .reduce(function (s, p) { return s + Number(p.amount); }, 0);
+}
+function getStatus(tenant, periodId, payments, today) {
+  var paid = paidForPeriod(tenant.id, periodId, payments);
+  var due = getPeriodDue(tenant, periodId);
+  var late = today > getDueDate(tenant, periodId);
+  if (paid >= due) return "paid";
+  if (paid > 0) return late ? "overdue" : "partial";
+  return late ? "overdue" : "due";
+}
+var STATUS_META = {
+  paid:    { label: "PAID",    color: "var(--green)", bg: "var(--green-bg)" },
+  partial: { label: "PARTIAL", color: "var(--amber)", bg: "var(--amber-bg)" },
+  due:     { label: "DUE",     color: "var(--slate)", bg: "var(--slate-bg)" },
+  overdue: { label: "OVERDUE", color: "var(--red)",   bg: "var(--red-bg)" },
+};
+function totalOwed(tenant, payments, today) {
+  var periods = getPeriods(tenant, today); var sum = 0;
+  periods.forEach(function (pid) {
+    var due = getPeriodDue(tenant, pid); var paid = paidForPeriod(tenant.id, pid, payments);
+    sum += Math.max(due - paid, 0);
+  });
+  return sum;
+}
+function getOverdueSummary(tenant, payments, today) {
+  var periods = getPeriods(tenant, today);
+  var overduePeriods = []; var total = 0; var maxDaysLate = 0;
+  periods.forEach(function (pid) {
+    var status = getStatus(tenant, pid, payments, today);
+    if (status !== "overdue") return;
+    var due = getPeriodDue(tenant, pid);
+    var paid = paidForPeriod(tenant.id, pid, payments);
+    var balance = due - paid;
+    var daysLate = Math.max(0, Math.floor((today - getDueDate(tenant, pid)) / 86400000));
+    overduePeriods.push({ period: pid, label: periodLabel(tenant, pid), balance: balance, daysLate: daysLate });
+    total += balance;
+    if (daysLate > maxDaysLate) maxDaysLate = daysLate;
+  });
+  overduePeriods.sort(function (a, b) { return b.daysLate - a.daysLate; });
+  return { total: total, overduePeriods: overduePeriods, maxDaysLate: maxDaysLate };
+}
+function buildReminderMessage(tenant, summary) {
+  var lines = ["*Rent Reminder*", "Hi " + tenant.name + ",", "", "Our records show the following rent is overdue:"];
+  summary.overduePeriods.forEach(function (p) { lines.push("• " + p.label + ": " + money(p.balance) + " (" + p.daysLate + " day" + (p.daysLate !== 1 ? "s" : "") + " overdue)"); });
+  lines.push("", "Total overdue: " + money(summary.total), "", "Kindly arrange payment at your earliest convenience. Thank you.", "— Rent Tracker");
+  return lines.join("\n");
+}
+function nextPeriodAfter(tenant, periodId) {
+  if (!periodId || periodId === "OPENING") periodId = getCurrentPeriod(tenant, TODAY);
+  if (tenant.rentType === "monthly") {
+    var parts = periodId.split("-"); var y = Number(parts[0]), m = Number(parts[1]) - 1;
+    m++; if (m > 11) { m = 0; y++; }
+    return monthPeriodId(y, m);
+  }
+  var parts2 = periodId.split("-H"); var y2 = Number(parts2[0]), h = Number(parts2[1]);
+  h++; if (h > 2) { h = 1; y2++; }
+  return semesterPeriodId(y2, h);
+}
+function computeAllocation(tenant, amount, payments, today) {
+  var periods = getPeriods(tenant, today).slice().reverse(); // oldest debt first, current period last
+  var remaining = Number(amount) || 0;
+  var allocations = [];
+  periods.forEach(function (pid) {
+    if (remaining <= 0.001) return;
+    var due = getPeriodDue(tenant, pid); if (due <= 0) return;
+    var paid = paidForPeriod(tenant.id, pid, payments); var balance = due - paid;
+    if (balance <= 0) return;
+    var apply = Math.min(balance, remaining);
+    allocations.push({ period: pid, label: periodLabel(tenant, pid), apply: apply, balance: balance, advance: false });
+    remaining -= apply;
+  });
+  // any money left over after clearing everything owed becomes an advance payment
+  // toward upcoming periods, so large payments are still fully accounted for
+  var cursor = periods.length ? periods[periods.length - 1] : getCurrentPeriod(tenant, today);
+  var guard = 0;
+  while (remaining > 0.001 && guard < 24) {
+    cursor = nextPeriodAfter(tenant, cursor);
+    var due2 = getPeriodDue(tenant, cursor);
+    var apply2 = Math.min(due2, remaining);
+    if (apply2 <= 0) break;
+    allocations.push({ period: cursor, label: periodLabel(tenant, cursor), apply: apply2, balance: due2, advance: true });
+    remaining -= apply2;
+    guard++;
+  }
+  return { allocations: allocations, leftover: remaining };
+}
+function money(n) { return "USh " + Math.round(Number(n || 0)).toLocaleString("en-US"); }
+function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+function initials(name) {
+  var parts = String(name || "").trim().split(/\s+/);
+  return ((parts[0] || "")[0] || "").toUpperCase() + ((parts[1] || "")[0] || "").toUpperCase();
+}
+function ordinal(n) {
+  n = Number(n);
+  var s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+/* ==================================================================
+   WHATSAPP RECEIPT
+================================================================== */
+function normalizePhone(raw) {
+  if (!raw) return null;
+  var p = raw.replace(/[^\d+]/g, "").replace(/^\+/, "");
+  if (!p) return null;
+  if (p.charAt(0) === "0") p = "256" + p.slice(1); else if (p.slice(0, 3) !== "256") p = "256" + p;
+  return p;
+}
+function buildReceiptMessage(tenant, items, date, note, overallBalance) {
+  var total = items.reduce(function (s, i) { return s + i.amount; }, 0);
+  var lines = ["*House Rent Receipt*", "Tenant: " + tenant.name, "Unit: " + (tenant.unit || "-"), "Date: " + date, ""];
+  if (items.length > 1) {
+    lines.push("Months covered:");
+    items.forEach(function (i) { lines.push("• " + i.label + ": " + money(i.amount)); });
+    lines.push("");
+  } else {
+    lines.push("Period: " + items[0].label);
+  }
+  lines.push("Total received: " + money(total));
+  if (note) lines.push("Note: " + note);
+  lines.push(overallBalance > 0 ? "Balance remaining: " + money(overallBalance) : "Status: Paid in full");
+  lines.push("Landlord contact: " + LANDLORD_PHONE);
+  return lines.join("\n");
+}
+function sendWhatsAppReceipt(phone, message) {
+  var p = normalizePhone(phone); if (!p) return false;
+  window.open("https://wa.me/" + p + "?text=" + encodeURIComponent(message), "_blank");
+  return true;
+}
+
+/* ==================================================================
+   VISUAL RECEIPT (canvas image, exportable as PNG or PDF)
+   Balance remaining is always drawn prominently near the bottom.
+================================================================== */
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function shortReceiptNo(paymentId) { return (paymentId || uid()).slice(-6).toUpperCase(); }
+
+/* Two-pass layout: first compute every element's position (and the
+   resulting canvas height) as plain data, then render that data.
+   This keeps the receipt correctly sized whether it covers 1 month
+   or many (e.g. an advance payment covering several months). */
+function buildReceiptLayout(tenant, items, date, note, overallBalance) {
+  var m = 28, px = m + 34, pw = 600 - m * 2 - 68;
+  var multi = items.length > 1;
+  var total = items.reduce(function (s, i) { return s + i.amount; }, 0);
+  var paidInFull = overallBalance <= 0;
+  var ops = []; var y = m + 44;
+
+  ops.push({ t: "header", y: y }); y += 78;
+  ops.push({ t: "hline", y: y }); y += 26;
+
+  function addRow(label, value) { ops.push({ t: "row", y: y, label: label, value: value }); y += 34; }
+  addRow("Tenant", tenant.name);
+  addRow("Unit", tenant.unit || "—");
+  if (!multi) addRow("Period", items[0].label);
+  addRow("Date paid", date);
+  if (note) addRow("Note", note);
+
+  y += 8; ops.push({ t: "hline", y: y }); y += 30;
+
+  if (multi) {
+    ops.push({ t: "label", y: y, text: "MONTHS COVERED (ADVANCE PAYMENT)" }); y += 22;
+    items.forEach(function (it) {
+      ops.push({ t: "itemrow", y: y, label: it.label, value: money(it.amount) });
+      y += 27;
+    });
+    y += 11; ops.push({ t: "hline", y: y }); y += 26;
+  }
+
+  ops.push({ t: "box", y: y, bg: "#E4F4EC", fg: "#146B47", label: "TOTAL RECEIVED", value: money(total) });
+  y += 78 + 16;
+
+  var balColor = paidInFull ? { bg: "#E4F4EC", fg: "#146B47" } : { bg: "#FBE7E5", fg: "#A23029" };
+  ops.push({ t: "box", y: y, bg: balColor.bg, fg: balColor.fg, label: paidInFull ? "STATUS" : "BALANCE REMAINING", value: paidInFull ? "Paid in full ✓" : money(overallBalance) });
+  y += 78 + 30;
+
+  ops.push({ t: "hline", y: y }); y += 24;
+  ops.push({ t: "footer", y: y, text: "Generated " + TODAY.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) }); y += 20;
+  ops.push({ t: "footer", y: y, text: "Landlord contact: " + LANDLORD_PHONE }); y += 20;
+  if (tenant.phone) { ops.push({ t: "footer", y: y, text: "Tenant contact: " + tenant.phone }); y += 20; }
+
+  return { ops: ops, H: Math.round(y + m), m: m, px: px, pw: pw };
+}
+
+function drawReceiptCanvas(tenant, items, date, note, overallBalance, receiptNo) {
+  var layout = buildReceiptLayout(tenant, items, date, note, overallBalance);
+  var W = 600, H = layout.H, m = layout.m, px = layout.px, pw = layout.pw;
+  var canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  var ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#F3F5F7"; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#FFFFFF";
+  roundRectPath(ctx, m, m, W - m * 2, H - m * 2, 20); ctx.fill();
+
+  layout.ops.forEach(function (op) {
+    if (op.t === "header") {
+      ctx.fillStyle = "#1C8A5D"; roundRectPath(ctx, px, op.y, 44, 44, 12); ctx.fill();
+      ctx.fillStyle = "#FFFFFF"; ctx.font = "22px sans-serif"; ctx.textBaseline = "middle"; ctx.textAlign = "center";
+      ctx.fillText("\uD83E\uDDFE", px + 22, op.y + 24);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#1F2937"; ctx.font = "bold 19px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText("House Rent Receipt", px + 56, op.y + 16);
+      ctx.fillStyle = "#6B7280"; ctx.font = "13px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText("Receipt #" + receiptNo, px + 56, op.y + 36);
+    } else if (op.t === "hline") {
+      ctx.strokeStyle = "#E7EAEE"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(px, op.y); ctx.lineTo(px + pw, op.y); ctx.stroke();
+    } else if (op.t === "row") {
+      ctx.fillStyle = "#6B7280"; ctx.font = "13px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText(op.label, px, op.y);
+      ctx.fillStyle = "#1F2937"; ctx.font = "bold 15px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.textAlign = "right"; ctx.fillText(op.value, px + pw, op.y); ctx.textAlign = "left";
+    } else if (op.t === "label") {
+      ctx.fillStyle = "#146B47"; ctx.font = "bold 11px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText(op.text, px, op.y);
+    } else if (op.t === "itemrow") {
+      ctx.fillStyle = "#1F2937"; ctx.font = "13.5px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText(op.label, px, op.y);
+      ctx.fillStyle = "#146B47"; ctx.font = "bold 13.5px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.textAlign = "right"; ctx.fillText(op.value, px + pw, op.y); ctx.textAlign = "left";
+    } else if (op.t === "box") {
+      ctx.fillStyle = op.bg; roundRectPath(ctx, px, op.y, pw, 78, 14); ctx.fill();
+      ctx.fillStyle = op.fg; ctx.font = "12px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText(op.label, px + 20, op.y + 24);
+      ctx.fillStyle = op.fg; ctx.font = "bold " + (op.value.length > 14 ? 22 : 28) + "px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText(op.value, px + 20, op.y + 54);
+    } else if (op.t === "footer") {
+      ctx.fillStyle = "#9CA3AF"; ctx.font = "11.5px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText(op.text, px, op.y);
+    }
+  });
+
+  return canvas;
+}
+
+/* Build a minimal single-page PDF with the receipt embedded as a JPEG,
+   written by hand (no libraries) using PDF's DCTDecode image filter. */
+function buildReceiptPdfBlob(canvas) {
+  var jpegDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  var base64 = jpegDataUrl.split(",")[1];
+  var binary = atob(base64);
+  var jpegBytes = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) jpegBytes[i] = binary.charCodeAt(i);
+
+  var W = canvas.width, H = canvas.height;
+  var parts = []; var offset = 0; var offsets = [];
+  function pushStr(s) { var b = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 0xFF; parts.push(b); offset += b.length; }
+  function pushBytes(b) { parts.push(b); offset += b.length; }
+  function markOffset() { offsets.push(offset); }
+
+  pushStr("%PDF-1.4\n");
+  markOffset(); pushStr("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+  markOffset(); pushStr("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+  markOffset(); pushStr("3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /XObject << /Im0 4 0 R >> >> /MediaBox [0 0 " + W + " " + H + "] /Contents 5 0 R >>\nendobj\n");
+  markOffset(); pushStr("4 0 obj\n<< /Type /XObject /Subtype /Image /Width " + W + " /Height " + H + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " + jpegBytes.length + " >>\nstream\n");
+  pushBytes(jpegBytes);
+  pushStr("\nendstream\nendobj\n");
+  var content = "q " + W + " 0 0 " + H + " 0 0 cm /Im0 Do Q";
+  markOffset(); pushStr("5 0 obj\n<< /Length " + content.length + " >>\nstream\n" + content + "\nendstream\nendobj\n");
+
+  var xrefStart = offset;
+  var xref = "xref\n0 6\n0000000000 65535 f \n";
+  offsets.forEach(function (o) { xref += pad10(o) + " 00000 n \n"; });
+  pushStr(xref);
+  pushStr("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" + xrefStart + "\n%%EOF");
+
+  return new Blob(parts, { type: "application/pdf" });
+}
+function pad10(n) { var s = String(n); while (s.length < 10) s = "0" + s; return s; }
+
+function downloadBlob(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a"); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+}
+function safeFileSlug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
+
+/* ==================================================================
+   ACTIONS
+================================================================== */
+var toastTimer = null;
+function showToast(text, isError) {
+  var el = document.getElementById("toast"); if (!el) return;
+  el.textContent = text; el.className = "toast" + (isError ? " error" : ""); el.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.style.display = "none"; }, 2600);
+}
+function goRoute(route) {
+  state.route = route;
+  if (route !== "tenantDetail") state.activeTenantId = null;
+  state.payingKey = null;
+  renderApp();
+  window.scrollTo(0, 0);
+}
+function openTenantDetail(id) { state.route = "tenantDetail"; state.activeTenantId = id; state.payingKey = null; renderApp(); window.scrollTo(0, 0); }
+
+function addOrUpdateTenant(data) {
+  if (data.id) {
+    state.tenants = state.tenants.map(function (t) { return t.id === data.id ? Object.assign({}, t, data) : t; });
+    showToast("Tenant updated.");
+  } else {
+    data.id = uid(); data.status = "active"; state.tenants.unshift(data); showToast("Tenant added.");
+  }
+  // guarantee the tenant that was just added/edited is actually visible afterward,
+  // even if a leftover search or filter would otherwise hide them
+  state.query = ""; state.typeFilter = "all"; state.tenantStatusFilter = "active";
+  saveData(); closeModal(); renderApp();
+}
+function deleteTenant(id) {
+  state.tenants = state.tenants.filter(function (t) { return t.id !== id; });
+  state.payments = state.payments.filter(function (p) { return p.tenantId !== id; });
+  if (state.activeTenantId === id) { state.route = "tenants"; state.activeTenantId = null; }
+  saveData(); closeModal(); showToast("Tenant removed."); renderApp();
+}
+function endTenancy(id, endDate) {
+  state.tenants = state.tenants.map(function (t) { return t.id === id ? Object.assign({}, t, { status: "former", endDate: endDate }) : t; });
+  saveData(); closeModal(); showToast("Tenancy ended.");
+  renderApp();
+}
+function reactivateTenant(id) {
+  state.tenants = state.tenants.map(function (t) { return t.id === id ? Object.assign({}, t, { status: "active", endDate: null }) : t; });
+  saveData(); showToast("Tenant marked active again."); renderApp();
+}
+function addPaymentRecord(tenantId, period, amount, date, note, batchId) {
+  state.payments.unshift({ id: uid(), tenantId: tenantId, period: period, amount: Number(amount), date: date, note: note || "", batchId: batchId || null });
+}
+function recordPayment(tenantId, period, amount, date, note) {
+  addPaymentRecord(tenantId, period, amount, date, note, null);
+  var tenant = state.tenants.find(function (t) { return t.id === tenantId; });
+  saveData(); state.payingKey = null;
+  showToast(tenant && tenant.phone ? "Payment recorded. Tap the WhatsApp icon to send the receipt." : "Payment recorded.");
+  renderApp();
+}
+function recordPaymentBulk(tenantId, allocations, date, note) {
+  var used = allocations.filter(function (a) { return a.apply > 0; });
+  var batchId = used.length > 1 ? uid() : null;
+  used.forEach(function (a) { addPaymentRecord(tenantId, a.period, a.apply, date, note, batchId); });
+  var tenant = state.tenants.find(function (t) { return t.id === tenantId; });
+  saveData(); state.payingKey = null;
+  var msg = used.length > 1
+    ? "Payment recorded across " + used.length + " months. Tap WhatsApp on any of them for one combined receipt."
+    : "Payment recorded.";
+  if (used.length <= 1 && tenant && tenant.phone) msg += " Tap WhatsApp to send the receipt.";
+  showToast(msg);
+  renderApp();
+}
+function deletePayment(id) { state.payments = state.payments.filter(function (p) { return p.id !== id; }); saveData(); showToast("Payment entry removed."); renderApp(); }
+
+function addOrUpdateExpense(data) {
+  if (data.id) {
+    state.expenses = state.expenses.map(function (e) { return e.id === data.id ? Object.assign({}, e, data) : e; });
+    showToast("Expense updated.");
+  } else {
+    data.id = uid(); state.expenses.unshift(data); showToast("Expense recorded.");
+  }
+  saveData(); closeModal(); renderApp();
+}
+function deleteExpense(id) { state.expenses = state.expenses.filter(function (e) { return e.id !== id; }); saveData(); closeModal(); showToast("Expense removed."); renderApp(); }
+
+function closeModal() { state.modal = null; state.modalCtx = null; renderModal(); }
+
+/* ==================================================================
+   RENDER — SHELL
+================================================================== */
+var NAV_ITEMS = [
+  { route: "dashboard", icon: "🏠", label: "Home" },
+  { route: "tenants", icon: "👥", label: "Tenants" },
+  { route: "expenses", icon: "🧾", label: "Expenses" },
+  { route: "reports", icon: "📊", label: "Reports" },
+];
+
+function renderApp() {
+  renderTopbar();
+  renderFab();
+  renderNav();
+  var page = document.getElementById("page");
+  var route = state.route === "tenantDetail" ? "tenants" : state.route; // detail is a sub-page of Tenants
+  var html = "";
+  if (state.route === "dashboard") html = renderDashboardPage();
+  else if (state.route === "tenants") html = renderTenantsPage();
+  else if (state.route === "tenantDetail") html = renderTenantDetailPage();
+  else if (state.route === "expenses") html = renderExpensesPage();
+  else if (state.route === "reports") html = renderReportsPage();
+  else if (state.route === "overdue") html = renderOverduePage();
+  page.innerHTML = html;
+  page.classList.remove("page-enter"); void page.offsetWidth; page.classList.add("page-enter");
+  renderModal();
+}
+
+function renderTopbar() {
+  var el = document.getElementById("topbar");
+  if (state.route === "dashboard") {
+    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;"><div>' +
+      '<h1>Rent Tracker</h1><p class="sub">' + TODAY.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) + '</p>' +
+      '</div><button class="back-btn" title="Backup & Restore" data-action="open-modal" data-modal="backup">&#9881;&#65039;</button></div>';
+  } else if (state.route === "tenants") {
+    el.innerHTML = '<h1>Tenants</h1>';
+  } else if (state.route === "tenantDetail") {
+    var t = state.tenants.find(function (x) { return x.id === state.activeTenantId; });
+    el.innerHTML = '<button class="back-btn" data-action="nav" data-route="tenants">&#8592;</button><h1>' + (t ? esc(t.name) : "Tenant") + '</h1>';
+  } else if (state.route === "expenses") {
+    el.innerHTML = '<h1>Expenses</h1>';
+  } else if (state.route === "reports") {
+    el.innerHTML = '<h1>Reports</h1>';
+  } else if (state.route === "overdue") {
+    el.innerHTML = '<button class="back-btn" data-action="nav" data-route="dashboard">&#8592;</button><h1>Overdue Rent</h1>';
+  }
+}
+
+function renderFab() {
+  var fab = document.getElementById("fabBtn");
+  if (state.route === "tenants") { fab.style.display = "flex"; fab.innerHTML = "+"; fab.setAttribute("data-action", "open-modal"); fab.setAttribute("data-modal", "addTenant"); }
+  else if (state.route === "expenses") { fab.style.display = "flex"; fab.innerHTML = "+"; fab.setAttribute("data-action", "open-modal"); fab.setAttribute("data-modal", "addExpense"); }
+  else { fab.style.display = "none"; }
+}
+
+function renderNav() {
+  var el = document.getElementById("bottomnav");
+  var activeRoute = state.route === "tenantDetail" ? "tenants" : (state.route === "overdue" ? "dashboard" : state.route);
+  el.innerHTML = NAV_ITEMS.map(function (n) {
+    return '<button class="nav-btn' + (activeRoute === n.route ? " active" : "") + '" data-action="nav" data-route="' + n.route + '">' +
+      '<span class="ic">' + n.icon + '</span><span class="lb">' + n.label + '</span></button>';
+  }).join("");
+}
+
+/* ==================================================================
+   RENDER — DASHBOARD
+================================================================== */
+function renderDashboardPage() {
+  var thisMonthId = monthPeriodId(TODAY.getFullYear(), TODAY.getMonth());
+  var collected = 0, pending = 0, overdue = 0, expensesThisMonth = 0;
+  state.payments.forEach(function (p) { if (p.date && p.date.slice(0, 7) === thisMonthId) collected += Number(p.amount); });
+  state.expenses.forEach(function (e) { if (e.date && e.date.slice(0, 7) === thisMonthId) expensesThisMonth += Number(e.amount); });
+  state.tenants.forEach(function (t) {
+    pending += totalOwed(t, state.payments, TODAY);
+    if (getOverdueSummary(t, state.payments, TODAY).total > 0) overdue++;
+  });
+  var net = collected - expensesThisMonth;
+  var hour = TODAY.getHours();
+  var greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  var html = '<p class="greet">' + greeting + '</p><p class="greet-sub">Here\'s how things are looking this month.</p>';
+
+  html += '<div class="net-card"><div class="lbl">Net this month</div><div class="val">' + money(net) + '</div>' +
+    '<div class="row"><span>&#128176; ' + money(collected) + ' collected</span><span>&#128184; ' + money(expensesThisMonth) + ' spent</span></div></div>';
+
+  html += '<div class="stat-grid">' +
+    '<div class="stat-card"><div class="lbl">Tenants</div><div class="val">' + state.tenants.length + '</div></div>' +
+    '<div class="stat-card' + (overdue > 0 ? " accent" : "") + '" data-action="nav" data-route="overdue" style="cursor:pointer;"><div class="lbl">Overdue</div><div class="val">' + overdue + '</div></div>' +
+    '<div class="stat-card"><div class="lbl">Pending dues</div><div class="val" style="font-size:15px;">' + money(pending) + '</div></div>' +
+    '<div class="stat-card"><div class="lbl">Expenses (month)</div><div class="val" style="font-size:15px;">' + money(expensesThisMonth) + '</div></div>' +
+    '</div>';
+
+  html += '<div class="quick-actions">' +
+    '<button class="qa-btn" data-action="open-modal" data-modal="recordPayment"><span class="ic">&#128179;</span><span class="lb">Record<br>Payment</span></button>' +
+    '<button class="qa-btn" data-action="open-modal" data-modal="addTenant"><span class="ic">&#128101;</span><span class="lb">Add<br>Tenant</span></button>' +
+    '<button class="qa-btn" data-action="open-modal" data-modal="addExpense"><span class="ic">&#129534;</span><span class="lb">Add<br>Expense</span></button>' +
+    '</div>';
+
+  var activity = [];
+  state.payments.forEach(function (p) {
+    var t = state.tenants.find(function (x) { return x.id === p.tenantId; });
+    activity.push({ kind: "in", date: p.date, title: (t ? t.name : "Tenant") + " paid", sub: t ? periodLabel(t, p.period) : "", amount: Number(p.amount) });
+  });
+  state.expenses.forEach(function (e) {
+    activity.push({ kind: "out", date: e.date, title: e.description, sub: e.category || "Expense", amount: Number(e.amount) });
+  });
+  activity.sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
+  activity = activity.slice(0, 8);
+
+  html += '<div class="sec-head"><h2>Recent activity</h2></div>';
+  if (activity.length === 0) {
+    html += '<div class="card"><div class="empty-state" style="padding:26px 8px;"><div class="ic">&#128203;</div><p>Nothing recorded yet. Add a tenant or record a payment to get started.</p></div></div>';
+  } else {
+    html += '<div class="card">' + activity.map(function (a) {
+      return '<div class="activity-item"><div class="act-icon ' + a.kind + '">' + (a.kind === "in" ? "&#128176;" : "&#128184;") + '</div>' +
+        '<div class="act-main"><div class="act-title">' + esc(a.title) + '</div><div class="act-sub">' + esc(a.sub) + ' · ' + esc(a.date) + '</div></div>' +
+        '<div class="act-amt ' + a.kind + '">' + (a.kind === "in" ? "+" : "-") + money(a.amount) + '</div></div>';
+    }).join("") + '</div>';
+  }
+  return html;
+}
+
+/* ==================================================================
+   RENDER — TENANTS LIST
+================================================================== */
+function filteredTenants() {
+  var q = state.query.toLowerCase();
+  return state.tenants
+    .filter(function (t) { return (state.tenantStatusFilter === "former") ? t.status === "former" : t.status !== "former"; })
+    .filter(function (t) { return state.typeFilter === "all" ? true : t.rentType === state.typeFilter; })
+    .filter(function (t) { return t.name.toLowerCase().indexOf(q) !== -1 || (t.unit || "").toLowerCase().indexOf(q) !== -1; });
+}
+function renderTenantsPage() {
+  var activeTenants = state.tenants.filter(function (t) { return t.status !== "former"; });
+  var formerTenants = state.tenants.filter(function (t) { return t.status === "former"; });
+  var overdueCount = state.tenants.filter(function (t) { return getOverdueSummary(t, state.payments, TODAY).total > 0; }).length;
+  var html = "";
+  if (overdueCount > 0) {
+    html += '<button data-action="nav" data-route="overdue" style="width:100%;text-align:left;border:none;background:var(--red-bg);color:var(--red);' +
+      'border-radius:14px;padding:13px 15px;display:flex;align-items:center;gap:10px;margin-bottom:14px;cursor:pointer;">' +
+      '<span style="font-size:18px;">&#9888;&#65039;</span>' +
+      '<span style="flex:1;font-size:13px;font-weight:700;">' + overdueCount + ' tenant' + (overdueCount > 1 ? "s" : "") + ' overdue — tap to send WhatsApp reminders</span>' +
+      '<span style="font-size:16px;">&#8250;</span></button>';
+  }
+
+  if (formerTenants.length > 0) {
+    html += '<div class="seg" style="margin-bottom:14px;">' +
+      '<button type="button" class="seg-opt' + (state.tenantStatusFilter === "active" ? " active" : "") + '" data-action="set-status-filter" data-status="active">Active (' + activeTenants.length + ')</button>' +
+      '<button type="button" class="seg-opt' + (state.tenantStatusFilter === "former" ? " active" : "") + '" data-action="set-status-filter" data-status="former">Former (' + formerTenants.length + ')</button>' +
+      '</div>';
+  }
+
+  html += '<div class="search-row"><div class="search-box"><span>&#128269;</span><input id="tenantSearch" value="' + esc(state.query) + '" placeholder="Search name or unit…"></div></div>';
+  html += '<div class="chip-row">' + ["all", "monthly", "semester"].map(function (f) {
+    var label = f === "all" ? "All" : f === "monthly" ? "Monthly" : "Semester";
+    return '<button class="chip' + (state.typeFilter === f ? " active" : "") + '" data-action="set-filter" data-filter="' + f + '">' + label + "</button>";
+  }).join("") + '</div>';
+
+  var baseCount = state.tenantStatusFilter === "former" ? formerTenants.length : activeTenants.length;
+  var list = filteredTenants();
+  var filtersActive = state.query.trim() !== "" || state.typeFilter !== "all";
+  if (filtersActive && baseCount > 0) {
+    html += '<button data-action="clear-tenant-filters" style="width:100%;text-align:left;border:none;background:var(--slate-bg);color:var(--ink-soft);' +
+      'border-radius:12px;padding:9px 13px;font-size:12px;font-weight:600;margin-bottom:12px;cursor:pointer;">' +
+      'Showing ' + list.length + ' of ' + baseCount + ' — tap to clear search/filter</button>';
+  }
+
+  if (list.length === 0) {
+    var emptyMsg = state.tenants.length === 0 ? "No tenants yet — add your first one."
+      : (baseCount === 0 ? "No " + (state.tenantStatusFilter === "former" ? "former" : "active") + " tenants." : "No tenants match your search.");
+    html += '<div class="empty-state"><div class="ic">&#128101;</div><p>' + emptyMsg + '</p>' +
+      (state.tenants.length === 0 ? '<button class="btn-primary" style="max-width:220px;margin:0 auto;" data-action="open-modal" data-modal="addTenant">Add Tenant</button>' : "") + '</div>';
+  } else {
+    html += list.map(function (t) {
+      var cur = getCurrentPeriod(t, TODAY);
+      var status = getStatus(t, cur, state.payments, TODAY);
+      var meta = STATUS_META[status];
+      var owed = totalOwed(t, state.payments, TODAY);
+      var formerTag = t.status === "former" ? '<span class="mini-tag" style="background:var(--slate-bg);">Moved out</span>' : "";
+      return '<div class="tenant-card" data-action="open-tenant" data-id="' + t.id + '">' +
+        '<div class="avatar">' + initials(t.name) + '</div>' +
+        '<div class="tenant-main"><div class="tenant-name-row"><span class="tenant-name">' + esc(t.name) + '</span><span class="mini-tag">' + esc(t.unit || "—") + '</span>' + formerTag + '</div>' +
+        '<div class="tenant-sub">' + (t.rentType === "monthly" ? "Monthly" : "Semester") + ' · ' + (owed > 0 ? money(owed) + " owed" : "All settled") + '</div></div>' +
+        (t.status === "former" ? "" : '<span class="badge" style="color:' + meta.color + ';background:' + meta.bg + ';">' + meta.label + '</span>') +
+        '<span class="chev">&#8250;</span></div>';
+    }).join("");
+  }
+  return html;
+}
+
+/* ==================================================================
+   RENDER — TENANT DETAIL
+================================================================== */
+function renderTenantDetailPage() {
+  var tenant = state.tenants.find(function (t) { return t.id === state.activeTenantId; });
+  if (!tenant) return '<div class="empty-state"><p>Tenant not found.</p></div>';
+  var owed = totalOwed(tenant, state.payments, TODAY);
+  var isFormer = tenant.status === "former";
+
+  var html = '<div class="info-card">' +
+    (isFormer ? '<div style="background:var(--slate-bg);color:var(--ink-soft);border-radius:10px;padding:8px 12px;font-size:12px;font-weight:700;margin-bottom:14px;">&#128683; Moved out on ' + esc(tenant.endDate || "—") + '</div>' : "") +
+    '<div class="info-top"><div class="avatar-lg">' + initials(tenant.name) + '</div><div>' +
+    '<div class="info-name">' + esc(tenant.name) + '</div><div class="info-unit">' + esc(tenant.unit || "No unit set") + '</div></div></div>' +
+    '<div class="info-grid">' +
+    '<div class="info-item"><div class="lbl">Billing</div><div class="val">' + (tenant.rentType === "monthly" ? "Monthly" : "Semester (2/yr)") + (tenant.rentType === "monthly" && tenant.billingDay > 1 ? " (from " + ordinal(tenant.billingDay) + ")" : "") + '</div></div>' +
+    '<div class="info-item"><div class="lbl">Rent</div><div class="val">' + money(tenant.rentAmount) + '</div></div>' +
+    '<div class="info-item"><div class="lbl">WhatsApp</div><div class="val">' + esc(tenant.phone || "Not set") + '</div></div>' +
+    '<div class="info-item"><div class="lbl">Start date</div><div class="val">' + esc(tenant.startDate) + '</div></div>' +
+    '</div>' +
+    '<div class="info-actions"><button class="btn-outline" data-action="open-modal" data-modal="editTenant" data-id="' + tenant.id + '">&#9998; Edit</button>' +
+    (isFormer
+      ? '<button class="btn-outline" data-action="reactivate-tenant" data-id="' + tenant.id + '">&#8635; Reactivate</button>'
+      : '<button class="btn-outline" data-action="open-modal" data-modal="endTenancy" data-id="' + tenant.id + '">&#128683; End Tenancy</button>') +
+    '</div>' +
+    '<div class="info-actions" style="margin-top:9px;"><button class="btn-outline danger" style="flex:1;" data-action="open-modal" data-modal="confirmDelete" data-type="tenant" data-id="' + tenant.id + '">&#128465; Delete Tenant</button></div>' +
+    '</div>';
+
+  html += '<div class="owed-card ' + (owed > 0 ? "owing" : "clear") + '"><div class="lbl">' + (owed > 0 ? "Total outstanding" : "Account status") + '</div>' +
+    '<div class="val">' + (owed > 0 ? money(owed) : "Fully paid up ✓") + '</div></div>';
+
+  html += '<div class="sec-head"><h2>Payment history</h2></div>';
+
+  var periods = getPeriods(tenant, TODAY);
+  periods.forEach(function (pid) {
+    var status = getStatus(tenant, pid, state.payments, TODAY);
+    var meta = STATUS_META[status];
+    var paid = paidForPeriod(tenant.id, pid, state.payments);
+    var due = getPeriodDue(tenant, pid);
+    var entries = state.payments.filter(function (p) { return p.tenantId === tenant.id && p.period === pid; });
+    var isPaying = state.payingKey === pid;
+
+    html += '<div class="period-card"><div class="period-top">' +
+      '<div style="flex:1;"><div class="period-name">' + periodLabel(tenant, pid) + '</div>' +
+      '<div class="period-amt">' + (paid > 0 ? money(paid) + " of " + money(due) : money(due)) + '</div></div>' +
+      '<span class="badge" style="color:' + meta.color + ';background:' + meta.bg + ';">' + meta.label + '</span>';
+    if (status !== "paid") html += '<button class="record-btn" data-action="toggle-record" data-period="' + pid + '">Record</button>';
+    html += '</div>';
+
+    entries.forEach(function (e) {
+      var advTag = e.batchId ? ' <span style="color:var(--primary);font-weight:700;">· part of multi-month payment</span>' : "";
+      html += '<div class="entry-row"><span>' + esc(e.date) + " — " + money(e.amount) + (e.note ? " (" + esc(e.note) + ")" : "") + advTag + '</span>' +
+        '<span class="entry-actions">' +
+        '<button class="icon-btn" title="View / share receipt" data-action="open-receipt" data-payment-id="' + e.id + '">&#128172;</button>' +
+        '<button class="icon-btn" title="Delete" data-action="delete-payment" data-id="' + e.id + '">&#10005;</button></span></div>';
+    });
+
+    if (isPaying) {
+      var suggested = Math.max(due - paid, 0);
+      html += '<div class="pay-form" data-period="' + pid + '">' +
+        '<div class="field-grid">' +
+        '<label class="field"><span class="field-label">Amount</span><input class="input pf-amount" type="number" min="0" value="' + (suggested > 0 ? suggested : "") + '"></label>' +
+        '<label class="field"><span class="field-label">Date paid</span><input class="input pf-date" type="date" value="' + new Date().toISOString().slice(0, 10) + '"></label>' +
+        '</div>' +
+        '<label class="field"><span class="field-label">Note (optional)</span><input class="input pf-note" type="text" placeholder="e.g. paid by mobile money"></label>' +
+        '<div class="modal-actions" style="margin-top:12px;">' +
+        '<button class="btn-primary" data-action="save-payment" data-period="' + pid + '">Save payment</button>' +
+        '<button class="btn-ghost" data-action="toggle-record" data-period="' + pid + '">Cancel</button></div></div>';
+    }
+    html += '</div>';
+  });
+
+  return html;
+}
+
+/* ==================================================================
+   RENDER — EXPENSES
+================================================================== */
+var EXPENSE_CATEGORIES = ["Repairs & Maintenance", "Utilities", "Security", "Staff Wages", "Taxes & Licenses", "Cleaning & Supplies", "Other"];
+
+function filteredExpenses() {
+  var q = state.expQuery.toLowerCase();
+  return state.expenses
+    .filter(function (e) { return state.expCategoryFilter === "all" ? true : e.category === state.expCategoryFilter; })
+    .filter(function (e) { return e.description.toLowerCase().indexOf(q) !== -1 || (e.category || "").toLowerCase().indexOf(q) !== -1; });
+}
+function renderExpensesPage() {
+  var thisMonthId = monthPeriodId(TODAY.getFullYear(), TODAY.getMonth());
+  var monthTotal = state.expenses.filter(function (e) { return e.date && e.date.slice(0, 7) === thisMonthId; })
+    .reduce(function (s, e) { return s + Number(e.amount); }, 0);
+
+  var html = '<div class="net-card" style="background:linear-gradient(135deg,#D8443C,#B23A32);"><div class="lbl">Spent this month</div><div class="val">' + money(monthTotal) + '</div></div>';
+
+  html += '<div class="search-row"><div class="search-box"><span>&#128269;</span><input id="expenseSearch" value="' + esc(state.expQuery) + '" placeholder="Search expenses…"></div></div>';
+
+  var cats = ["all"].concat(Array.from(new Set(state.expenses.map(function (e) { return e.category; }).filter(Boolean))));
+  html += '<div class="chip-row">' + cats.map(function (c) {
+    return '<button class="chip' + (state.expCategoryFilter === c ? " active" : "") + '" data-action="set-exp-filter" data-cat="' + esc(c) + '">' + (c === "all" ? "All" : esc(c)) + '</button>';
+  }).join("") + '</div>';
+
+  var list = filteredExpenses();
+  if (list.length === 0) {
+    html += '<div class="empty-state"><div class="ic">&#129534;</div><p>' + (state.expenses.length > 0 ? "No expenses match your search." : "No expenses recorded yet.") + '</p>' +
+      (state.expenses.length === 0 ? '<button class="btn-primary" style="max-width:220px;margin:0 auto;" data-action="open-modal" data-modal="addExpense">Add Expense</button>' : "") + '</div>';
+  } else {
+    html += list.map(function (e) {
+      return '<div class="expense-card"><div class="exp-icon">&#129534;</div>' +
+        '<div class="exp-main"><div class="exp-desc">' + esc(e.description) + '</div><div class="exp-sub">' + esc(e.category || "Uncategorized") + ' · ' + esc(e.date) + (e.note ? " · " + esc(e.note) : "") + '</div></div>' +
+        '<div class="exp-amt-col"><div class="exp-amt">-' + money(e.amount) + '</div><div class="exp-actions">' +
+        '<button class="icon-btn" title="Edit" data-action="open-modal" data-modal="editExpense" data-id="' + e.id + '">&#9998;</button>' +
+        '<button class="icon-btn" title="Delete" data-action="open-modal" data-modal="confirmDelete" data-type="expense" data-id="' + e.id + '">&#128465;</button>' +
+        '</div></div></div>';
+    }).join("");
+  }
+  return html;
+}
+
+/* ==================================================================
+   RENDER — REPORTS
+================================================================== */
+function lastNMonths(n, today) {
+  var arr = []; var y = today.getFullYear(), m = today.getMonth();
+  for (var i = 0; i < n; i++) { arr.push(monthPeriodId(y, m)); m--; if (m < 0) { m = 11; y--; } }
+  return arr;
+}
+function renderReportsPage() {
+  var months = lastNMonths(6, TODAY);
+  var rows = months.map(function (mid) {
+    var collected = state.payments.filter(function (p) { return p.date && p.date.slice(0, 7) === mid; }).reduce(function (s, p) { return s + Number(p.amount); }, 0);
+    var expenses = state.expenses.filter(function (e) { return e.date && e.date.slice(0, 7) === mid; }).reduce(function (s, e) { return s + Number(e.amount); }, 0);
+    return { mid: mid, collected: collected, expenses: expenses, net: collected - expenses };
+  });
+  var maxVal = Math.max.apply(null, rows.map(function (r) { return Math.max(r.collected, r.expenses); }).concat([1]));
+
+  var totalCollected = state.payments.reduce(function (s, p) { return s + Number(p.amount); }, 0);
+  var totalExpenses = state.expenses.reduce(function (s, e) { return s + Number(e.amount); }, 0);
+
+  var html = '<div class="net-card"><div class="lbl">All-time net</div><div class="val">' + money(totalCollected - totalExpenses) + '</div>' +
+    '<div class="row"><span>&#128176; ' + money(totalCollected) + ' collected</span><span>&#128184; ' + money(totalExpenses) + ' spent</span></div></div>';
+
+  html += '<div class="sec-head"><h2>Last 6 months</h2></div>';
+  html += rows.map(function (r) {
+    var collectedPct = Math.round((r.collected / maxVal) * 100);
+    var expensesPct = Math.round((r.expenses / maxVal) * 100);
+    return '<div class="month-row"><div class="m-head"><span class="m-name">' + monthShortLabel(r.mid) + '</span>' +
+      '<span class="m-net" style="color:' + (r.net >= 0 ? "var(--primary)" : "var(--red)") + ';">' + (r.net >= 0 ? "+" : "") + money(r.net) + '</span></div>' +
+      '<div class="bar-line"><span class="bar-label">Income</span><div class="bar-track"><div class="bar-fill in" style="width:' + collectedPct + '%;"></div></div><span class="bar-val">' + money(r.collected) + '</span></div>' +
+      '<div class="bar-line"><span class="bar-label">Expenses</span><div class="bar-track"><div class="bar-fill out" style="width:' + expensesPct + '%;"></div></div><span class="bar-val">' + money(r.expenses) + '</span></div>' +
+      '</div>';
+  }).join("");
+  return html;
+}
+
+/* ==================================================================
+   RENDER — OVERDUE (reminders)
+================================================================== */
+function renderOverduePage() {
+  var list = state.tenants
+    .map(function (t) { return { tenant: t, summary: getOverdueSummary(t, state.payments, TODAY) }; })
+    .filter(function (x) { return x.summary.total > 0; })
+    .sort(function (a, b) { return b.summary.maxDaysLate - a.summary.maxDaysLate; });
+
+  if (list.length === 0) {
+    return '<div class="empty-state"><div class="ic">&#9989;</div><p>No overdue balances right now — everyone\'s up to date.</p></div>';
+  }
+
+  var totalOverdue = list.reduce(function (s, x) { return s + x.summary.total; }, 0);
+  var html = '<div class="net-card" style="background:linear-gradient(135deg,#D8443C,#B23A32);"><div class="lbl">Total overdue</div><div class="val">' + money(totalOverdue) + '</div>' +
+    '<div class="row"><span>' + list.length + ' tenant' + (list.length > 1 ? "s" : "") + ' behind on rent</span></div></div>';
+
+  html += '<p class="hint-text" style="margin-bottom:14px;">Tap Remind to open WhatsApp with a reminder message pre-filled — review it, then hit send.</p>';
+
+  html += list.map(function (x) {
+    var t = x.tenant, s = x.summary;
+    return '<div class="tenant-card" data-action="open-tenant" data-id="' + t.id + '">' +
+      '<div class="avatar" style="background:var(--red-bg);color:var(--red);">' + initials(t.name) + '</div>' +
+      '<div class="tenant-main"><div class="tenant-name-row"><span class="tenant-name">' + esc(t.name) + '</span><span class="mini-tag">' + esc(t.unit || "—") + '</span></div>' +
+      '<div class="tenant-sub" style="color:var(--red);font-weight:700;">' + money(s.total) + ' · ' + s.maxDaysLate + ' day' + (s.maxDaysLate !== 1 ? "s" : "") + ' overdue</div></div>' +
+      (t.phone
+        ? '<button class="record-btn" style="background:var(--primary);" data-action="send-reminder" data-id="' + t.id + '">&#128172; Remind</button>'
+        : '<span class="mini-tag">No WhatsApp</span>') +
+      '</div>';
+  }).join("");
+  return html;
+}
+
+/* ==================================================================
+   MODALS
+================================================================== */
+function renderModal() {
+  var root = document.getElementById("modalRoot");
+  if (!state.modal) { root.innerHTML = ""; return; }
+  if (state.modal === "addTenant" || state.modal === "editTenant") {
+    var t = state.modal === "editTenant" ? state.tenants.find(function (x) { return x.id === state.modalCtx; }) : null;
+    root.innerHTML = tenantFormHtml(t); wireTenantForm(t);
+  } else if (state.modal === "recordPayment") {
+    root.innerHTML = recordPaymentHtml(); wireRecordPayment();
+  } else if (state.modal === "addExpense" || state.modal === "editExpense") {
+    var ex = state.modal === "editExpense" ? state.expenses.find(function (x) { return x.id === state.modalCtx; }) : null;
+    root.innerHTML = expenseFormHtml(ex); wireExpenseForm(ex);
+  } else if (state.modal === "confirmDelete") {
+    root.innerHTML = confirmDeleteHtml(); wireConfirmDelete();
+  } else if (state.modal === "receiptPreview") {
+    root.innerHTML = receiptPreviewHtml(); wireReceiptPreview();
+  } else if (state.modal === "endTenancy") {
+    root.innerHTML = endTenancyHtml(); wireEndTenancy();
+  } else if (state.modal === "backup") {
+    root.innerHTML = backupHtml(); wireBackup();
+  }
+}
+
+/* ==================================================================
+   BACKUP / RESTORE (move data between devices or browsers)
+================================================================== */
+function backupHtml() {
+  return '<div class="modal-overlay" id="ovBackup"><div class="modal">' +
+    '<div class="modal-top"><h2>Backup &amp; Restore</h2><button class="close" id="closeBackup">&times;</button></div>' +
+    '<p class="hint-text" style="font-size:13.5px;color:var(--ink-soft);margin-bottom:14px;">Your data is stored only on this device/browser. Use these to move it to another phone, or to keep a safety copy.</p>' +
+    '<div class="modal-actions" style="flex-direction:column;gap:10px;">' +
+    '<button class="btn-primary" id="btnExportData">&#11015;&#65039; Export backup file</button>' +
+    '<button class="btn-ghost" id="btnImportData">&#11014;&#65039; Import backup file</button>' +
+    '<input type="file" id="fileImportData" accept="application/json,.json" style="display:none;">' +
+    '</div>' +
+    '<p class="hint-text" style="font-size:12.5px;color:var(--ink-soft);margin-top:12px;">Importing replaces everything currently in this app with the contents of the file.</p>' +
+    '</div></div>';
+}
+function wireBackup() {
+  var overlay = document.getElementById("ovBackup");
+  var close = function () { closeModal(); };
+  document.getElementById("closeBackup").onclick = close;
+  overlay.onclick = function (e) { if (e.target.id === "ovBackup") close(); };
+
+  document.getElementById("btnExportData").onclick = function () {
+    var payload = { tenants: state.tenants, payments: state.payments, expenses: state.expenses, exportedAt: new Date().toISOString() };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var stamp = new Date().toISOString().slice(0, 10);
+    a.href = url; a.download = "rent-manager-backup-" + stamp + ".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Backup file downloaded.");
+  };
+
+  var fileInput = document.getElementById("fileImportData");
+  document.getElementById("btnImportData").onclick = function () { fileInput.click(); };
+  fileInput.onchange = function () {
+    var file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        if (!data || !Array.isArray(data.tenants) || !Array.isArray(data.payments) || !Array.isArray(data.expenses)) {
+          showToast("That file doesn't look like a valid backup.", true); return;
+        }
+        state.tenants = data.tenants; state.payments = data.payments; state.expenses = data.expenses;
+        saveData(); closeModal(); showToast("Backup restored.");
+        goRoute("dashboard");
+      } catch (err) {
+        showToast("Couldn't read that file.", true);
+      }
+    };
+    reader.readAsText(file);
+  };
+}
+
+function tenantFormHtml(t) {
+  t = t || {};
+  var hasCustomDay = t.billingDay && t.billingDay > 1;
+  return '<div class="modal-overlay" id="ovTenant"><div class="modal">' +
+    '<div class="modal-top"><h2>' + (t.id ? "Edit Tenant" : "New Tenant") + '</h2><button class="close" id="closeTenant">&times;</button></div>' +
+    '<label class="field"><span class="field-label">Full name</span><input class="input" id="f-name" value="' + esc(t.name || "") + '" placeholder="Jordan Reyes"></label>' +
+    '<div class="field-grid" style="margin-top:12px;">' +
+    '<label class="field" style="margin-top:0;"><span class="field-label">Unit / Room</span><input class="input" id="f-unit" value="' + esc(t.unit || "") + '" placeholder="Room 4B"></label>' +
+    '<label class="field" style="margin-top:0;"><span class="field-label">WhatsApp</span><input class="input" id="f-phone" value="' + esc(t.phone || "") + '" placeholder="0700 123456"></label>' +
+    '</div>' +
+    '<label class="field"><span class="field-label">Billing cycle</span><div class="seg">' +
+    '<button type="button" class="seg-opt' + ((t.rentType || "monthly") === "monthly" ? " active" : "") + '" data-type="monthly">Monthly</button>' +
+    '<button type="button" class="seg-opt' + (t.rentType === "semester" ? " active" : "") + '" data-type="semester">Semester (2/yr)</button>' +
+    '</div></label>' +
+    '<div class="field-grid">' +
+    '<label class="field"><span class="field-label" id="rentAmtLabel">' + ((t.rentType || "monthly") === "monthly" ? "Rent / month" : "Rent / semester") + '</span><input class="input" id="f-amount" type="number" min="0" value="' + esc(t.rentAmount || "") + '" placeholder="0"></label>' +
+    '<label class="field"><span class="field-label">Start date</span><input class="input" id="f-start" type="date" value="' + (t.startDate || new Date().toISOString().slice(0, 10)) + '"></label>' +
+    '</div>' +
+    '<div class="field" id="midMonthField" style="' + ((t.rentType || "monthly") === "monthly" ? "" : "display:none;") + '">' +
+    '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">' +
+    '<input type="checkbox" id="f-midmonth" ' + (hasCustomDay ? "checked" : "") + ' style="width:16px;height:16px;">' +
+    '<span class="field-label" style="margin:0;">Their month doesn\'t start on the 1st</span></label>' +
+    '<div id="billingDayWrap" style="' + (hasCustomDay ? "" : "display:none;") + 'margin-top:8px;">' +
+    '<span class="field-label">Day their monthly cycle begins</span>' +
+    '<input class="input" id="f-billingday" type="number" min="1" max="28" value="' + (hasCustomDay ? t.billingDay : 15) + '">' +
+    '<p class="hint-text">E.g. 15 means their rent period runs the 15th to the 14th of next month, and repeats every month on that day.</p>' +
+    '</div></div>' +
+    '<label class="field"><span class="field-label">Previous balance owed (optional)</span><input class="input" id="f-opening" type="number" min="0" value="' + esc(t.openingBalance || "") + '" placeholder="0"></label>' +
+    '<p class="hint-text">Rent owed before you started using this app — shows as an outstanding balance to collect.</p>' +
+    '<div class="modal-actions"><button class="btn-primary" id="saveTenant">' + (t.id ? "Save changes" : "Add tenant") + '</button><button class="btn-ghost" id="cancelTenant">Cancel</button></div>' +
+    '</div></div>';
+}
+function wireTenantForm(initial) {
+  var rentType = (initial && initial.rentType) || "monthly";
+  var overlay = document.getElementById("ovTenant");
+  var close = function () { closeModal(); };
+  document.getElementById("closeTenant").onclick = close;
+  document.getElementById("cancelTenant").onclick = close;
+  overlay.onclick = function (e) { if (e.target.id === "ovTenant") close(); };
+  var opts = overlay.querySelectorAll(".seg-opt");
+  opts.forEach(function (btn) {
+    btn.onclick = function () {
+      rentType = btn.getAttribute("data-type");
+      opts.forEach(function (b) { b.classList.toggle("active", b === btn); });
+      document.getElementById("rentAmtLabel").textContent = rentType === "monthly" ? "Rent / month" : "Rent / semester";
+      document.getElementById("midMonthField").style.display = rentType === "monthly" ? "" : "none";
+    };
+  });
+  document.getElementById("f-midmonth").onchange = function (e) {
+    document.getElementById("billingDayWrap").style.display = e.target.checked ? "" : "none";
+  };
+  document.getElementById("saveTenant").onclick = function () {
+    var name = document.getElementById("f-name").value.trim();
+    var amount = document.getElementById("f-amount").value;
+    var startDate = document.getElementById("f-start").value;
+    if (!name || !amount || Number(amount) <= 0 || !startDate) { showToast("Fill in name, rent amount, and start date.", true); return; }
+    var midMonth = document.getElementById("f-midmonth").checked;
+    var billingDay = midMonth ? Math.min(28, Math.max(1, Number(document.getElementById("f-billingday").value) || 1)) : 1;
+    addOrUpdateTenant({
+      id: initial ? initial.id : undefined, name: name,
+      unit: document.getElementById("f-unit").value.trim(),
+      phone: document.getElementById("f-phone").value.trim(),
+      rentType: rentType, rentAmount: amount, startDate: startDate,
+      billingDay: billingDay,
+      openingBalance: document.getElementById("f-opening").value || 0,
+    });
+  };
+}
+
+function renderBreakdownHtml(result) {
+  if (result.allocations.length === 0) return '<p class="hint-text">Enter an amount to see how it will be applied.</p>';
+  var rows = result.allocations.map(function (a) {
+    var tag = a.advance
+      ? '<span class="mini-tag" style="background:var(--primary-soft);color:var(--primary-dark);">advance</span>'
+      : (a.apply >= a.balance
+        ? '<span class="mini-tag" style="background:var(--green-bg);color:var(--green);">full</span>'
+        : '<span class="mini-tag" style="background:var(--amber-bg);color:var(--amber);">partial</span>');
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--border);">' +
+      '<div style="font-size:12.5px;font-weight:700;">' + esc(a.label) + '</div>' +
+      '<div style="display:flex;align-items:center;gap:7px;">' + tag + '<span style="font-weight:800;font-size:12.5px;">' + money(a.apply) + '</span></div>' +
+      '</div>';
+  }).join("");
+  return '<div style="background:var(--bg);border-radius:12px;padding:10px 12px;">' +
+    '<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin-bottom:2px;">Applies to ' + result.allocations.length + ' period' + (result.allocations.length > 1 ? "s" : "") + '</div>' +
+    rows + '</div>';
+}
+
+function recordPaymentHtml() {
+  return '<div class="modal-overlay" id="ovRP"><div class="modal">' +
+    '<div class="modal-top"><h2>Record Payment</h2><button class="close" id="closeRP">&times;</button></div>' +
+    (state.tenants.length === 0
+      ? '<p class="hint-text" style="font-size:13px;">Add a tenant first, then come back to record their payment.</p><div class="modal-actions"><button class="btn-primary" data-action="open-modal" data-modal="addTenant">Add a tenant</button></div>'
+      :
+      '<label class="field"><span class="field-label">Tenant</span>' +
+      '<div style="position:relative;">' +
+      '<input class="input" id="rp-tenant-search" placeholder="Search by name or room…" autocomplete="off">' +
+      '<div class="rp-results" id="rp-tenant-results"></div>' +
+      '</div>' +
+      '<div class="rp-selected-pill" id="rp-tenant-selected"><span class="name" id="rp-tenant-selected-label"></span><button type="button" id="rp-tenant-change">Change</button></div>' +
+      '</label>' +
+      '<div class="seg" style="margin-top:12px;">' +
+      '<button type="button" class="seg-opt active" id="rpModeAuto">Auto-split (oldest first)</button>' +
+      '<button type="button" class="seg-opt" id="rpModeManual">One period only</button>' +
+      '</div>' +
+      '<p class="hint-text" id="rpModeHint">Enter what they paid — it\'ll apply to their oldest unpaid balance first, splitting across periods if it covers more than one.</p>' +
+
+      '<div id="rpAutoSection">' +
+      '<label class="field"><span class="field-label">Amount received</span><input class="input" id="rp-amount" type="number" min="0" placeholder="0"></label>' +
+      '<div id="rp-breakdown" style="margin-top:10px;"></div>' +
+      '</div>' +
+
+      '<div id="rpManualSection" style="display:none;">' +
+      '<label class="field"><span class="field-label">Which period</span><select class="input" id="rp-period"><option value="">Select a tenant first…</option></select></label>' +
+      '<label class="field"><span class="field-label">Amount</span><input class="input" id="rp-manual-amount" type="number" min="0"></label>' +
+      '</div>' +
+
+      '<div class="field-grid" style="margin-top:12px;">' +
+      '<label class="field" style="margin-top:0;"><span class="field-label">Date paid</span><input class="input" id="rp-date" type="date" value="' + new Date().toISOString().slice(0, 10) + '"></label>' +
+      '<label class="field" style="margin-top:0;"><span class="field-label">Note (optional)</span><input class="input" id="rp-note" type="text" placeholder="e.g. mobile money"></label>' +
+      '</div>' +
+      '<div class="modal-actions"><button class="btn-primary" id="saveRP">Save payment</button><button class="btn-ghost" id="cancelRP">Cancel</button></div>'
+    ) + '</div></div>';
+}
+function wireRecordPayment() {
+  var overlay = document.getElementById("ovRP");
+  var close = function () { closeModal(); };
+  document.getElementById("closeRP").onclick = close;
+  overlay.onclick = function (e) { if (e.target.id === "ovRP") close(); };
+  if (state.tenants.length === 0) return;
+  document.getElementById("cancelRP").onclick = close;
+
+  var rpMode = "auto";
+  var selectedTenantId = null;
+  var searchInput = document.getElementById("rp-tenant-search");
+  var resultsEl = document.getElementById("rp-tenant-results");
+  var selectedWrap = document.getElementById("rp-tenant-selected");
+  var selectedLabel = document.getElementById("rp-tenant-selected-label");
+  var periodSel = document.getElementById("rp-period");
+  var manualAmountInput = document.getElementById("rp-manual-amount");
+  var autoAmountInput = document.getElementById("rp-amount");
+  var breakdownEl = document.getElementById("rp-breakdown");
+  var modeAutoBtn = document.getElementById("rpModeAuto");
+  var modeManualBtn = document.getElementById("rpModeManual");
+  var modeHint = document.getElementById("rpModeHint");
+
+  function setMode(mode) {
+    rpMode = mode;
+    modeAutoBtn.classList.toggle("active", mode === "auto");
+    modeManualBtn.classList.toggle("active", mode === "manual");
+    document.getElementById("rpAutoSection").style.display = mode === "auto" ? "" : "none";
+    document.getElementById("rpManualSection").style.display = mode === "manual" ? "" : "none";
+    modeHint.textContent = mode === "auto"
+      ? "Enter what they paid — it'll apply to their oldest unpaid balance first, splitting across periods if it covers more than one."
+      : "Pick exactly which period this payment should be recorded against.";
+  }
+  modeAutoBtn.onclick = function () { setMode("auto"); };
+  modeManualBtn.onclick = function () { setMode("manual"); };
+
+  function updateBreakdown() {
+    var tenant = state.tenants.find(function (t) { return t.id === selectedTenantId; });
+    if (!tenant || !autoAmountInput.value || Number(autoAmountInput.value) <= 0) { breakdownEl.innerHTML = ""; return; }
+    var result = computeAllocation(tenant, autoAmountInput.value, state.payments, TODAY);
+    breakdownEl.innerHTML = renderBreakdownHtml(result);
+  }
+  autoAmountInput.addEventListener("input", updateBreakdown);
+
+  function populatePeriods(tenantId) {
+    periodSel.innerHTML = "";
+    var tenant = state.tenants.find(function (t) { return t.id === tenantId; });
+    if (!tenant) { periodSel.innerHTML = '<option value="">Select a tenant first…</option>'; manualAmountInput.value = ""; return; }
+    var periods = getPeriods(tenant, TODAY).slice().reverse();
+    periods.forEach(function (pid) {
+      var due = getPeriodDue(tenant, pid); if (due <= 0) return;
+      var paid = paidForPeriod(tenantId, pid, state.payments); var balance = due - paid;
+      if (balance <= 0) return;
+      var opt = document.createElement("option"); opt.value = pid; opt.textContent = periodLabel(tenant, pid) + " — " + money(balance) + " owed";
+      periodSel.appendChild(opt);
+    });
+    if (periodSel.options.length === 0) { periodSel.innerHTML = '<option value="">Nothing owed — fully paid up</option>'; manualAmountInput.value = ""; }
+    else { periodSel.selectedIndex = 0; periodSel.dispatchEvent(new Event("change")); }
+  }
+  periodSel.onchange = function () {
+    var tenant = state.tenants.find(function (t) { return t.id === selectedTenantId; });
+    if (!tenant || !periodSel.value) return;
+    var due = getPeriodDue(tenant, periodSel.value); var paid = paidForPeriod(tenant.id, periodSel.value, state.payments);
+    manualAmountInput.value = Math.max(due - paid, 0);
+  };
+
+  function selectTenant(id) {
+    var tenant = state.tenants.find(function (t) { return t.id === id; });
+    if (!tenant) return;
+    selectedTenantId = id;
+    resultsEl.style.display = "none";
+    searchInput.style.display = "none";
+    selectedWrap.style.display = "flex";
+    selectedLabel.textContent = tenant.name + (tenant.unit ? " — " + tenant.unit : "") + (tenant.status === "former" ? " (moved out)" : "");
+    populatePeriods(id); updateBreakdown();
+  }
+  function renderResults(query) {
+    var q = (query || "").toLowerCase().trim();
+    var matches = state.tenants.filter(function (t) {
+      return t.name.toLowerCase().indexOf(q) !== -1 || (t.unit || "").toLowerCase().indexOf(q) !== -1;
+    }).slice(0, 8);
+    if (matches.length === 0) {
+      resultsEl.innerHTML = '<div class="rp-result-item" style="color:var(--ink-soft);">No tenant matches "' + esc(query) + '"</div>';
+    } else {
+      resultsEl.innerHTML = matches.map(function (t) {
+        return '<div class="rp-result-item" data-id="' + t.id + '"><strong>' + esc(t.name) + '</strong>' +
+          (t.unit ? " — " + esc(t.unit) : "") + (t.status === "former" ? ' <span style="color:var(--ink-faint);">(moved out)</span>' : "") + '</div>';
+      }).join("");
+      Array.prototype.forEach.call(resultsEl.querySelectorAll(".rp-result-item[data-id]"), function (item) {
+        item.addEventListener("mousedown", function (e) { e.preventDefault(); selectTenant(item.getAttribute("data-id")); });
+      });
+    }
+    resultsEl.style.display = "block";
+  }
+  document.getElementById("rp-tenant-change").onclick = function () {
+    selectedTenantId = null;
+    selectedWrap.style.display = "none";
+    searchInput.style.display = "";
+    searchInput.value = ""; searchInput.focus();
+    populatePeriods(null); updateBreakdown();
+  };
+  searchInput.addEventListener("focus", function () { renderResults(searchInput.value); });
+  searchInput.addEventListener("input", function () { renderResults(searchInput.value); });
+  searchInput.addEventListener("blur", function () { setTimeout(function () { resultsEl.style.display = "none"; }, 150); });
+
+  document.getElementById("saveRP").onclick = function () {
+    var tenantId = selectedTenantId;
+    if (!tenantId) { showToast("Search and select a tenant.", true); return; }
+    var tenant = state.tenants.find(function (t) { return t.id === tenantId; });
+    var date = document.getElementById("rp-date").value;
+    var note = document.getElementById("rp-note").value;
+    if (!date) { showToast("Pick the date paid.", true); return; }
+
+    if (rpMode === "auto") {
+      var amount = autoAmountInput.value;
+      if (!amount || Number(amount) <= 0) { showToast("Enter an amount.", true); return; }
+      var result = computeAllocation(tenant, amount, state.payments, TODAY);
+      closeModal();
+      recordPaymentBulk(tenantId, result.allocations, date, note);
+    } else {
+      var period = periodSel.value, amount2 = manualAmountInput.value;
+      if (!period) { showToast("Select which period this covers.", true); return; }
+      if (!amount2 || Number(amount2) <= 0) { showToast("Enter an amount.", true); return; }
+      closeModal();
+      recordPayment(tenantId, period, amount2, date, note);
+    }
+  };
+}
+
+function expenseFormHtml(e) {
+  e = e || {};
+  var dl = EXPENSE_CATEGORIES.map(function (c) { return '<option value="' + esc(c) + '">'; }).join("");
+  return '<div class="modal-overlay" id="ovExp"><div class="modal">' +
+    '<div class="modal-top"><h2>' + (e.id ? "Edit Expense" : "New Expense") + '</h2><button class="close" id="closeExp">&times;</button></div>' +
+    '<label class="field"><span class="field-label">Description</span><input class="input" id="e-desc" value="' + esc(e.description || "") + '" placeholder="e.g. Plumbing repair — Room 3"></label>' +
+    '<label class="field"><span class="field-label">Category</span><input class="input" id="e-category" list="expCats" value="' + esc(e.category || "") + '" placeholder="e.g. Repairs & Maintenance"><datalist id="expCats">' + dl + '</datalist></label>' +
+    '<div class="field-grid">' +
+    '<label class="field"><span class="field-label">Amount</span><input class="input" id="e-amount" type="number" min="0" value="' + esc(e.amount || "") + '" placeholder="0"></label>' +
+    '<label class="field"><span class="field-label">Date</span><input class="input" id="e-date" type="date" value="' + (e.date || new Date().toISOString().slice(0, 10)) + '"></label>' +
+    '</div>' +
+    '<label class="field"><span class="field-label">Note (optional)</span><input class="input" id="e-note" value="' + esc(e.note || "") + '" placeholder="Any extra detail"></label>' +
+    '<div class="modal-actions"><button class="btn-primary" id="saveExp">' + (e.id ? "Save changes" : "Save expense") + '</button><button class="btn-ghost" id="cancelExp">Cancel</button></div>' +
+    '</div></div>';
+}
+function wireExpenseForm(initial) {
+  var overlay = document.getElementById("ovExp");
+  var close = function () { closeModal(); };
+  document.getElementById("closeExp").onclick = close;
+  document.getElementById("cancelExp").onclick = close;
+  overlay.onclick = function (e) { if (e.target.id === "ovExp") close(); };
+  document.getElementById("saveExp").onclick = function () {
+    var description = document.getElementById("e-desc").value.trim();
+    var amount = document.getElementById("e-amount").value;
+    var date = document.getElementById("e-date").value;
+    if (!description || !amount || Number(amount) <= 0 || !date) { showToast("Fill in description, amount, and date.", true); return; }
+    addOrUpdateExpense({
+      id: initial ? initial.id : undefined, description: description,
+      category: document.getElementById("e-category").value.trim(),
+      amount: amount, date: date, note: document.getElementById("e-note").value.trim(),
+    });
+  };
+}
+
+function receiptPreviewHtml() {
+  var ctx = state.modalCtx;
+  var hasPhone = ctx && ctx.tenant && ctx.tenant.phone;
+  var shareLabel = hasPhone ? "Send to " + ctx.tenant.name.split(" ")[0] : "Share";
+  var hint = hasPhone
+    ? "Opens WhatsApp with " + ctx.tenant.name + " directly and saves the receipt as a PDF — attach it in the chat, then hit send."
+    : "No WhatsApp number on file for this tenant — add one to send directly, or use your phone's share sheet.";
+  return '<div class="modal-overlay" id="ovReceipt"><div class="modal">' +
+    '<div class="modal-top"><h2>Receipt</h2><button class="close" id="closeReceipt">&times;</button></div>' +
+    '<div class="receipt-preview-wrap"><img id="receiptImg" alt="Rent receipt"></div>' +
+    '<div class="receipt-btn-row">' +
+    '<button class="receipt-btn primary" id="rcptShare"><span class="ic">&#128172;</span>' + esc(shareLabel) + '</button>' +
+    '<button class="receipt-btn" id="rcptPng"><span class="ic">&#128247;</span>Save Image</button>' +
+    '<button class="receipt-btn" id="rcptPdf"><span class="ic">&#128196;</span>Save PDF</button>' +
+    '</div>' +
+    '<p class="hint-text" style="text-align:center;margin-top:12px;">' + esc(hint) + '</p>' +
+    '</div></div>';
+}
+function wireReceiptPreview() {
+  var ctx = state.modalCtx; // { tenant, items, date, note, overallBalance, receiptNo }
+  var overlay = document.getElementById("ovReceipt");
+  var close = function () { closeModal(); };
+  document.getElementById("closeReceipt").onclick = close;
+  overlay.onclick = function (e) { if (e.target.id === "ovReceipt") close(); };
+
+  var canvas = drawReceiptCanvas(ctx.tenant, ctx.items, ctx.date, ctx.note, ctx.overallBalance, ctx.receiptNo);
+  var pngDataUrl = canvas.toDataURL("image/png");
+  document.getElementById("receiptImg").src = pngDataUrl;
+
+  var filenameBase = "receipt-" + safeFileSlug(ctx.tenant.name) + "-" + safeFileSlug(ctx.date);
+
+  document.getElementById("rcptPng").onclick = function () {
+    canvas.toBlob(function (blob) { downloadBlob(blob, filenameBase + ".png"); showToast("Image saved."); }, "image/png");
+  };
+  document.getElementById("rcptPdf").onclick = function () {
+    try {
+      var blob = buildReceiptPdfBlob(canvas);
+      downloadBlob(blob, filenameBase + ".pdf");
+      showToast("PDF saved.");
+    } catch (e) { showToast("Couldn't build the PDF — try Save Image instead.", true); }
+  };
+  document.getElementById("rcptShare").onclick = function () {
+    var caption = buildReceiptMessage(ctx.tenant, ctx.items, ctx.date, ctx.note, ctx.overallBalance);
+    var pdfBlob = null;
+    try { pdfBlob = buildReceiptPdfBlob(canvas); } catch (e) { pdfBlob = null; }
+
+    if (ctx.tenant.phone) {
+      // Open WhatsApp for THIS tenant's number immediately, while still inside
+      // the click event — doing this synchronously (before the async file
+      // save below) avoids the browser's popup blocker stepping in.
+      var opened = sendWhatsAppReceipt(ctx.tenant.phone, caption);
+      if (pdfBlob) downloadBlob(pdfBlob, filenameBase + ".pdf");
+      else canvas.toBlob(function (blob) { downloadBlob(blob, filenameBase + ".png"); }, "image/png");
+      showToast(opened
+        ? "WhatsApp opened with " + ctx.tenant.name + " — the receipt PDF was saved, attach it and hit send."
+        : "Couldn't open WhatsApp automatically — the receipt PDF was saved for you to attach manually.");
+      return;
+    }
+
+    // No phone on file for this tenant — there's no way to auto-target a
+    // specific chat, so fall back to the phone's general share sheet,
+    // sharing the PDF where possible.
+    (async function () {
+      if (pdfBlob && navigator.canShare) {
+        var pdfFile = new File([pdfBlob], filenameBase + ".pdf", { type: "application/pdf" });
+        if (navigator.canShare({ files: [pdfFile] })) {
+          try { await navigator.share({ files: [pdfFile], title: "Rent Receipt", text: caption }); return; }
+          catch (e) { /* user cancelled */ return; }
+        }
+      }
+      canvas.toBlob(async function (blob) {
+        var imgFile = new File([blob], filenameBase + ".png", { type: "image/png" });
+        if (navigator.canShare && navigator.canShare({ files: [imgFile] })) {
+          try { await navigator.share({ files: [imgFile], title: "Rent Receipt", text: caption }); return; }
+          catch (e) { /* user cancelled */ }
+        }
+        showToast("Add a WhatsApp number for this tenant to send directly, or use Save PDF instead.", true);
+      }, "image/png");
+    })();
+  };
+}
+
+function endTenancyHtml() {
+  var tenant = state.tenants.find(function (t) { return t.id === state.modalCtx; });
+  if (!tenant) return "";
+  var owed = totalOwed(tenant, state.payments, TODAY);
+  return '<div class="modal-overlay" id="ovEnd"><div class="modal">' +
+    '<div class="modal-top"><h2>End Tenancy</h2><button class="close" id="closeEnd">&times;</button></div>' +
+    '<p class="hint-text" style="font-size:13.5px;color:var(--ink-soft);">' + esc(tenant.name) + ' will be marked as moved out. No new rent periods will be charged after their move-out date, and they\'ll move to your Former Tenants list.</p>' +
+    (owed > 0 ? '<p class="hint-text" style="font-size:12.5px;color:var(--red);margin-top:8px;">They still owe ' + money(owed) + ' — this stays on record and they\'ll still appear in Overdue reminders until it\'s settled.</p>' : "") +
+    '<label class="field"><span class="field-label">Move-out date</span><input class="input" id="end-date" type="date" value="' + new Date().toISOString().slice(0, 10) + '"></label>' +
+    '<div class="modal-actions"><button class="btn-primary danger" id="confirmEnd">End Tenancy</button><button class="btn-ghost" id="cancelEnd">Cancel</button></div>' +
+    '</div></div>';
+}
+function wireEndTenancy() {
+  var tenant = state.tenants.find(function (t) { return t.id === state.modalCtx; });
+  var overlay = document.getElementById("ovEnd");
+  var close = function () { closeModal(); };
+  document.getElementById("closeEnd").onclick = close;
+  document.getElementById("cancelEnd").onclick = close;
+  overlay.onclick = function (e) { if (e.target.id === "ovEnd") close(); };
+  document.getElementById("confirmEnd").onclick = function () {
+    var endDate = document.getElementById("end-date").value;
+    if (!endDate) { showToast("Pick a move-out date.", true); return; }
+    endTenancy(tenant.id, endDate);
+  };
+}
+
+function confirmDeleteHtml() {
+  var ctx = state.modalCtx;
+  var label = ctx.type === "tenant"
+    ? (function () { var t = state.tenants.find(function (x) { return x.id === ctx.id; }); return t ? t.name : "this tenant"; })()
+    : (function () { var e = state.expenses.find(function (x) { return x.id === ctx.id; }); return e ? e.description : "this expense"; })();
+  var body = ctx.type === "tenant" ? 'This deletes "' + esc(label) + '" and their entire payment history. This can\'t be undone.' : 'This deletes "' + esc(label) + '". This can\'t be undone.';
+  return '<div class="modal-overlay" id="ovDel"><div class="modal">' +
+    '<div class="modal-top"><h2>' + (ctx.type === "tenant" ? "Remove tenant?" : "Delete expense?") + '</h2><button class="close" id="closeDel">&times;</button></div>' +
+    '<p class="hint-text" style="font-size:13.5px;color:var(--ink-soft);">' + body + '</p>' +
+    '<div class="modal-actions"><button class="btn-primary danger" id="confirmDel">' + (ctx.type === "tenant" ? "Delete tenant" : "Delete expense") + '</button><button class="btn-ghost" id="cancelDel">Cancel</button></div>' +
+    '</div></div>';
+}
+function wireConfirmDelete() {
+  var ctx = state.modalCtx; var overlay = document.getElementById("ovDel");
+  var close = function () { closeModal(); };
+  document.getElementById("closeDel").onclick = close;
+  document.getElementById("cancelDel").onclick = close;
+  overlay.onclick = function (e) { if (e.target.id === "ovDel") close(); };
+  document.getElementById("confirmDel").onclick = function () {
+    if (ctx.type === "tenant") deleteTenant(ctx.id); else deleteExpense(ctx.id);
+  };
+}
+
+/* ==================================================================
+   EVENT DELEGATION
+================================================================== */
+document.addEventListener("click", function (e) {
+  var el = e.target.closest("[data-action]");
+  if (!el) return;
+  var action = el.getAttribute("data-action");
+
+  if (action === "nav") { goRoute(el.getAttribute("data-route")); }
+  else if (action === "open-tenant") { openTenantDetail(el.getAttribute("data-id")); }
+  else if (action === "open-modal") {
+    state.modal = el.getAttribute("data-modal");
+    var id = el.getAttribute("data-id");
+    if (state.modal === "confirmDelete") state.modalCtx = { type: el.getAttribute("data-type"), id: id };
+    else state.modalCtx = id || null;
+    renderModal();
+  }
+  else if (action === "set-filter") { state.typeFilter = el.getAttribute("data-filter"); renderApp(); }
+  else if (action === "set-status-filter") { state.tenantStatusFilter = el.getAttribute("data-status"); renderApp(); }
+  else if (action === "clear-tenant-filters") { state.query = ""; state.typeFilter = "all"; renderApp(); }
+  else if (action === "reactivate-tenant") { reactivateTenant(el.getAttribute("data-id")); }
+  else if (action === "set-exp-filter") { state.expCategoryFilter = el.getAttribute("data-cat"); renderApp(); }
+  else if (action === "toggle-record") {
+    var pid = el.getAttribute("data-period");
+    state.payingKey = state.payingKey === pid ? null : pid;
+    renderApp();
+  }
+  else if (action === "save-payment") {
+    var period = el.getAttribute("data-period");
+    var form = el.closest(".pay-form");
+    var amount = form.querySelector(".pf-amount").value;
+    var date = form.querySelector(".pf-date").value;
+    var note = form.querySelector(".pf-note").value;
+    if (!amount || Number(amount) <= 0) { showToast("Enter an amount.", true); return; }
+    if (!date) { showToast("Pick the date paid.", true); return; }
+    recordPayment(state.activeTenantId, period, amount, date, note);
+  }
+  else if (action === "delete-payment") { deletePayment(el.getAttribute("data-id")); }
+  else if (action === "open-receipt") {
+    var payment = state.payments.find(function (p) { return p.id === el.getAttribute("data-payment-id"); });
+    if (!payment) return;
+    var tenant = state.tenants.find(function (t) { return t.id === payment.tenantId; });
+    if (!tenant) return;
+    var group = payment.batchId
+      ? state.payments.filter(function (p) { return p.tenantId === tenant.id && p.batchId === payment.batchId; })
+      : [payment];
+    group = group.slice().sort(function (a, b) { return getDueDate(tenant, a.period) - getDueDate(tenant, b.period); });
+    var items = group.map(function (p) { return { label: periodLabel(tenant, p.period), amount: Number(p.amount) }; });
+    state.modal = "receiptPreview";
+    state.modalCtx = {
+      tenant: tenant,
+      items: items,
+      date: payment.date,
+      note: payment.note,
+      overallBalance: totalOwed(tenant, state.payments, TODAY),
+      receiptNo: shortReceiptNo(payment.batchId || payment.id),
+    };
+    renderModal();
+  }
+  else if (action === "send-reminder") {
+    e.stopPropagation();
+    var rTenant = state.tenants.find(function (t) { return t.id === el.getAttribute("data-id"); });
+    if (!rTenant || !rTenant.phone) return;
+    var summary = getOverdueSummary(rTenant, state.payments, TODAY);
+    if (summary.total <= 0) return;
+    sendWhatsAppReceipt(rTenant.phone, buildReminderMessage(rTenant, summary));
+    showToast("Opened WhatsApp reminder for " + rTenant.name + ".");
+  }
+});
+
+/* ==================================================================
+   SEARCH INPUTS (kept outside re-rendered list containers isn't
+   possible here since page fully re-renders; instead we restore
+   focus + cursor position after filtering so typing feels smooth)
+================================================================== */
+document.addEventListener("input", function (e) {
+  if (e.target.id === "tenantSearch") {
+    var pos = e.target.selectionStart;
+    state.query = e.target.value;
+    renderApp();
+    var el = document.getElementById("tenantSearch");
+    if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+  } else if (e.target.id === "expenseSearch") {
+    var pos2 = e.target.selectionStart;
+    state.expQuery = e.target.value;
+    renderApp();
+    var el2 = document.getElementById("expenseSearch");
+    if (el2) { el2.focus(); el2.setSelectionRange(pos2, pos2); }
+  }
+});
+
+loadData();
+renderApp();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {
+      // Ignore — e.g. running from a file:// URL where service workers
+      // aren't allowed. The app still works, just without offline caching.
+    });
+  });
+}
+</script>
+</body>
+</html>
