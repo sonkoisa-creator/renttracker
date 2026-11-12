@@ -1,13 +1,13 @@
 // Bump this version whenever index.html (or any cached asset) changes,
 // so returning users get the update instead of a stale cached copy.
-const CACHE_VERSION = "rent-manager-v1";
+const CACHE_VERSION = "rent-manager-v2";
 const CORE_ASSETS = [
   "./index.html",
   "./manifest.json",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/icon-512-maskable.png",
-  "./icons/apple-touch-icon.png",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./icon-512-maskable.png",
+  "./apple-touch-icon.png",
 ];
 
 self.addEventListener("install", function (event) {

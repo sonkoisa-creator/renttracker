@@ -9,7 +9,7 @@
      on Android and iPhone and run full-screen like a native app. -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1C8A5D">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 
 <!-- Android / Chrome -->
 <meta name="mobile-web-app-capable" content="yes">
@@ -18,7 +18,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Rent Tracker">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root {
     --bg: #F3F5F7;
@@ -308,7 +308,97 @@ function loadData() {
 function saveData() {
   try {
     localStorage.setItem("rent-manager-data", JSON.stringify({ tenants: state.tenants, payments: state.payments, expenses: state.expenses }));
+    scheduleEmailBackup();
   } catch (e) { showToast("Couldn't save — storage may be full.", true); }
+}
+
+/* ==================================================================
+   AUTOMATIC EMAIL BACKUP (via Web3Forms — free, key is emailed to you)
+   Each device keeps its own key, so devices stay independent.
+================================================================== */
+var EMAIL_KEY_STORE = "rent-manager-email-key";
+var EMAIL_LAST_SENT = "rent-manager-email-last-sent";
+var EMAIL_PENDING = "rent-manager-email-pending";
+var EMAIL_STATUS = "rent-manager-email-status";
+var EMAIL_DEBOUNCE_MS = 60 * 1000;        // wait 1 min after the last change
+var EMAIL_MIN_GAP_MS = 30 * 60 * 1000;    // never more than 1 email / 30 min
+var emailTimer = null;
+
+function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+function getEmailKey() { return lsGet(EMAIL_KEY_STORE); }
+function setEmailStatus(msg) { lsSet(EMAIL_STATUS, msg); if (state && state.modal === "backup") renderModal(); }
+
+function encodeBackup(obj) { return "RMBACKUP1:" + btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
+function decodeBackup(text) {
+  var t = String(text || "").trim();
+  if (t.charAt(0) === "{") return JSON.parse(t);
+  var m = t.match(/RMBACKUP1:([A-Za-z0-9+\/=\s]+)/);
+  if (!m) throw new Error("no backup code");
+  return JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/\s+/g, "")))));
+}
+
+function msSinceLastEmail() {
+  var last = lsGet(EMAIL_LAST_SENT);
+  return last ? (Date.now() - Date.parse(last)) : Infinity;
+}
+function scheduleEmailBackup() {
+  if (!getEmailKey()) return;
+  lsSet(EMAIL_PENDING, "1");
+  if (emailTimer) clearTimeout(emailTimer);
+  var delay = Math.max(EMAIL_DEBOUNCE_MS, EMAIL_MIN_GAP_MS - msSinceLastEmail());
+  emailTimer = setTimeout(function () { sendEmailBackup(false); }, delay);
+}
+function flushEmailBackup() {
+  // Called when the app is sent to the background: send now if allowed.
+  if (getEmailKey() && lsGet(EMAIL_PENDING) && msSinceLastEmail() >= EMAIL_MIN_GAP_MS) {
+    if (emailTimer) clearTimeout(emailTimer);
+    sendEmailBackup(false);
+  }
+}
+function sendEmailBackup(manual) {
+  var key = getEmailKey();
+  if (!key) { if (manual) showToast("Add your Web3Forms key first.", true); return Promise.resolve(false); }
+  if (navigator.onLine === false) {
+    setEmailStatus("Offline — it will be emailed when you're back online.");
+    if (manual) showToast("You're offline.", true);
+    return Promise.resolve(false);
+  }
+  var now = new Date();
+  var payload = { tenants: state.tenants, payments: state.payments, expenses: state.expenses, exportedAt: now.toISOString() };
+  var code = encodeBackup(payload);
+  var body = JSON.stringify({
+    access_key: key,
+    subject: "Rent Tracker backup — " + now.toLocaleString(),
+    from_name: "Rent Tracker",
+    message: "Automatic backup from your Rent Tracker app.\n\n" +
+      "Tenants: " + state.tenants.length + " | Payments: " + state.payments.length + " | Expenses: " + state.expenses.length + "\n\n" +
+      "TO RESTORE: open the app > gear icon > Backup & Restore > 'Restore from pasted text', then copy and paste the whole code below (starting with RMBACKUP1:).\n\n" +
+      code
+  });
+  var opts = { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: body };
+  if (body.length < 60000) opts.keepalive = true;
+  return fetch("https://api.web3forms.com/submit", opts)
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok && j.success !== false, msg: j.message }; }); })
+    .then(function (res) {
+      if (res.ok) {
+        lsSet(EMAIL_LAST_SENT, now.toISOString());
+        lsSet("rent-manager-last-backup", now.toISOString());
+        lsDel(EMAIL_PENDING);
+        setEmailStatus("Last emailed: " + now.toLocaleString());
+        if (manual) showToast("Backup emailed to you.");
+        return true;
+      }
+      setEmailStatus("Email failed: " + (res.msg || "unknown error"));
+      if (manual) showToast("Email failed: " + (res.msg || "unknown error"), true);
+      return false;
+    })
+    .catch(function () {
+      setEmailStatus("Email failed — check your internet connection.");
+      if (manual) showToast("Email failed — check your connection.", true);
+      return false;
+    });
 }
 
 /* ==================================================================
@@ -885,6 +975,17 @@ function renderDashboardPage() {
 
   var html = '<p class="greet">' + greeting + '</p><p class="greet-sub">Here\'s how things are looking this month.</p>';
 
+  var lastBackup = localStorage.getItem("rent-manager-last-backup");
+  var daysSinceBackup = lastBackup ? Math.floor((TODAY - new Date(lastBackup)) / 86400000) : null;
+  var needsBackup = (state.tenants.length > 0) && (daysSinceBackup === null || daysSinceBackup >= 7);
+  if (needsBackup) {
+    html += '<button data-action="open-modal" data-modal="backup" style="width:100%;text-align:left;border:none;background:var(--amber-bg,#FFF4DE);color:var(--amber,#B4790E);' +
+      'border-radius:14px;padding:13px 15px;display:flex;align-items:center;gap:10px;margin-bottom:14px;cursor:pointer;">' +
+      '<span style="font-size:18px;">&#128190;</span>' +
+      '<span style="flex:1;font-size:13px;font-weight:700;">' + (lastBackup ? "It's been " + daysSinceBackup + " days since your last backup — tap to export" : "You haven't backed up yet — tap to export a safety copy") + '</span>' +
+      '<span style="font-size:16px;">&#8250;</span></button>';
+  }
+
   html += '<div class="net-card"><div class="lbl">Net this month</div><div class="val">' + money(net) + '</div>' +
     '<div class="row"><span>&#128176; ' + money(collected) + ' collected</span><span>&#128184; ' + money(expensesThisMonth) + ' spent</span></div></div>';
 
@@ -1207,22 +1308,87 @@ function renderModal() {
    BACKUP / RESTORE (move data between devices or browsers)
 ================================================================== */
 function backupHtml() {
-  return '<div class="modal-overlay" id="ovBackup"><div class="modal">' +
+  var key = getEmailKey();
+  var status = lsGet(EMAIL_STATUS);
+  var emailSection;
+  if (key) {
+    emailSection =
+      '<div style="background:var(--green-bg,#E6F4EC);border-radius:14px;padding:13px 14px;margin-bottom:12px;">' +
+      '<div style="font-weight:800;font-size:14px;">&#9989; Automatic email backup is ON</div>' +
+      '<div style="font-size:12.5px;margin-top:4px;color:var(--ink-soft);">' + esc(status || "Waiting for the first backup…") + '</div>' +
+      '</div>' +
+      '<div class="modal-actions" style="flex-direction:column;gap:10px;">' +
+      '<button class="btn-primary" id="btnEmailNow">&#128231; Email a backup now</button>' +
+      '<button class="btn-ghost" id="btnEmailOff">Turn off automatic email backup</button>' +
+      '</div>';
+  } else {
+    emailSection =
+      '<ol style="font-size:13px;color:var(--ink-soft);padding-left:18px;margin:0 0 10px;line-height:1.5;">' +
+      '<li>Open <a href="https://web3forms.com" target="_blank" rel="noopener" style="font-weight:700;">web3forms.com</a></li>' +
+      '<li>Type your email address and tap <b>Create Access Key</b> (no signup)</li>' +
+      '<li>Open the email they send you and copy the key</li>' +
+      '<li>Paste it below and tap Turn on</li></ol>' +
+      '<input class="input" id="emailKeyInput" placeholder="Paste access key here" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+      '<div class="modal-actions" style="flex-direction:column;gap:10px;margin-top:10px;">' +
+      '<button class="btn-primary" id="btnEmailOn">Turn on automatic email backup</button></div>';
+  }
+  return '<div class="modal-overlay" id="ovBackup"><div class="modal" style="max-height:88vh;overflow-y:auto;">' +
     '<div class="modal-top"><h2>Backup &amp; Restore</h2><button class="close" id="closeBackup">&times;</button></div>' +
-    '<p class="hint-text" style="font-size:13.5px;color:var(--ink-soft);margin-bottom:14px;">Your data is stored only on this device/browser. Use these to move it to another phone, or to keep a safety copy.</p>' +
+    '<h3 style="font-size:15px;margin:4px 0 8px;">&#128231; Automatic email backup</h3>' +
+    emailSection +
+    '<p style="font-size:12px;color:var(--ink-soft);margin:10px 0 0;">After you add or change anything, a backup is emailed to you within about a minute (and when you leave the app). It needs internet. Backups pass through Web3Forms, a free third-party service, and contain your tenant names, phone numbers and payments. Free limit: 250 emails a month.</p>' +
+    '<hr style="border:none;border-top:1px solid var(--line,#e3e7ec);margin:18px 0;">' +
+    '<h3 style="font-size:15px;margin:0 0 8px;">&#128190; Backup file</h3>' +
     '<div class="modal-actions" style="flex-direction:column;gap:10px;">' +
-    '<button class="btn-primary" id="btnExportData">&#11015;&#65039; Export backup file</button>' +
+    '<button class="btn-ghost" id="btnExportData">&#11015;&#65039; Export backup file</button>' +
     '<button class="btn-ghost" id="btnImportData">&#11014;&#65039; Import backup file</button>' +
     '<input type="file" id="fileImportData" accept="application/json,.json" style="display:none;">' +
     '</div>' +
-    '<p class="hint-text" style="font-size:12.5px;color:var(--ink-soft);margin-top:12px;">Importing replaces everything currently in this app with the contents of the file.</p>' +
+    '<hr style="border:none;border-top:1px solid var(--line,#e3e7ec);margin:18px 0;">' +
+    '<h3 style="font-size:15px;margin:0 0 8px;">&#128203; Restore from pasted text</h3>' +
+    '<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 8px;">Open a backup email, copy the long code starting with RMBACKUP1: and paste it here.</p>' +
+    '<textarea class="input" id="pasteBackup" rows="3" placeholder="Paste backup code here" style="font-size:12px;"></textarea>' +
+    '<div class="modal-actions" style="flex-direction:column;gap:10px;margin-top:10px;">' +
+    '<button class="btn-ghost" id="btnRestorePaste">Restore from pasted text</button></div>' +
+    '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:12px;">Restoring replaces everything currently in this app.</p>' +
     '</div></div>';
+}
+function applyRestoredData(data) {
+  if (!data || !Array.isArray(data.tenants) || !Array.isArray(data.payments) || !Array.isArray(data.expenses)) {
+    showToast("That doesn't look like a valid backup.", true); return;
+  }
+  if (!window.confirm("This will replace ALL data currently in this app with the backup (" + data.tenants.length + " tenants). Continue?")) return;
+  state.tenants = data.tenants; state.payments = data.payments; state.expenses = data.expenses;
+  saveData();
+  lsSet("rent-manager-last-backup", new Date().toISOString());
+  closeModal(); showToast("Backup restored.");
+  goRoute("dashboard");
 }
 function wireBackup() {
   var overlay = document.getElementById("ovBackup");
   var close = function () { closeModal(); };
   document.getElementById("closeBackup").onclick = close;
   overlay.onclick = function (e) { if (e.target.id === "ovBackup") close(); };
+
+  var on = document.getElementById("btnEmailOn");
+  if (on) on.onclick = function () {
+    var k = (document.getElementById("emailKeyInput").value || "").trim();
+    if (!/^[0-9a-fA-F-]{30,}$/.test(k)) { showToast("That doesn't look like a Web3Forms key.", true); return; }
+    lsSet(EMAIL_KEY_STORE, k);
+    setEmailStatus("Sending a test backup…");
+    renderModal();
+    sendEmailBackup(true).then(function (ok) {
+      if (!ok) { lsDel(EMAIL_KEY_STORE); renderModal(); }
+    });
+  };
+  var now = document.getElementById("btnEmailNow");
+  if (now) now.onclick = function () { setEmailStatus("Sending…"); sendEmailBackup(true); };
+  var off = document.getElementById("btnEmailOff");
+  if (off) off.onclick = function () {
+    lsDel(EMAIL_KEY_STORE); lsDel(EMAIL_PENDING); lsDel(EMAIL_STATUS);
+    if (emailTimer) clearTimeout(emailTimer);
+    showToast("Automatic email backup turned off."); renderModal();
+  };
 
   document.getElementById("btnExportData").onclick = function () {
     var payload = { tenants: state.tenants, payments: state.payments, expenses: state.expenses, exportedAt: new Date().toISOString() };
@@ -1234,6 +1400,8 @@ function wireBackup() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast("Backup file downloaded.");
+    lsSet("rent-manager-last-backup", new Date().toISOString());
+    if (state.route === "dashboard") renderApp();
   };
 
   var fileInput = document.getElementById("fileImportData");
@@ -1243,19 +1411,15 @@ function wireBackup() {
     if (!file) return;
     var reader = new FileReader();
     reader.onload = function () {
-      try {
-        var data = JSON.parse(reader.result);
-        if (!data || !Array.isArray(data.tenants) || !Array.isArray(data.payments) || !Array.isArray(data.expenses)) {
-          showToast("That file doesn't look like a valid backup.", true); return;
-        }
-        state.tenants = data.tenants; state.payments = data.payments; state.expenses = data.expenses;
-        saveData(); closeModal(); showToast("Backup restored.");
-        goRoute("dashboard");
-      } catch (err) {
-        showToast("Couldn't read that file.", true);
-      }
+      try { applyRestoredData(JSON.parse(reader.result)); }
+      catch (err) { showToast("Couldn't read that file.", true); }
     };
     reader.readAsText(file);
+  };
+
+  document.getElementById("btnRestorePaste").onclick = function () {
+    try { applyRestoredData(decodeBackup(document.getElementById("pasteBackup").value)); }
+    catch (err) { showToast("Couldn't read that text. Copy the whole code starting with RMBACKUP1:", true); }
   };
 }
 
@@ -1768,6 +1932,10 @@ document.addEventListener("input", function (e) {
 
 loadData();
 renderApp();
+
+window.addEventListener("online", function () { if (getEmailKey() && lsGet(EMAIL_PENDING)) scheduleEmailBackup(); });
+document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") flushEmailBackup(); });
+if (getEmailKey() && lsGet(EMAIL_PENDING)) scheduleEmailBackup();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
